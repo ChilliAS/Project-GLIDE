@@ -5,12 +5,12 @@
 
 # License #
 
-The ArduPilot project is licensed under the GNU General Public
+Project GLIDE is licensed under the GNU General Public
 License, version 3.
 
-- [Overview of license](https://ardupilot.org/dev/docs/license-gplv3.html)
+- [Overview of license by ArduPilot](https://ardupilot.org/dev/docs/license-gplv3.html)
 
-- [Full Text](https://github.com/ArduPilot/ardupilot/blob/master/COPYING.txt)
+- [Full Text](https://github.com/ChilliAS/Project-Glide/blob/master/COPYING.txt)
 
 
 # See ArduPilot!
