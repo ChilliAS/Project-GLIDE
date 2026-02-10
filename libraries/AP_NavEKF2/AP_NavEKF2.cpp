@@ -630,7 +630,7 @@ bool NavEKF2::InitialiseFilter(void)
 
     initFailure = InitFailures::UNKNOWN;
     if (_enable == 0) {
-        if (AP::dal().ekf_type_parameter_value() == 2) {
+        if (AP::dal().configured_ekf_type() == 2) {
             initFailure = InitFailures::NO_ENABLE;
         }
         return false;
@@ -1204,6 +1204,12 @@ bool NavEKF2::use_compass(void) const
         return false;
     }
     return core[primary].use_compass();
+}
+
+// are we using a gps?
+bool NavEKF2::using_gps(void) const
+{
+    return _fusionModeGPS != 3;
 }
 
 // write the raw optical flow measurements

@@ -2,7 +2,7 @@
 
 ## Enabling Scripting Support in Builds
 
-Scripting is automatically enabled on all boards with at least 1MB of flash space.
+Scripting is automatically enabled on all boards with more than 1MB of flash space.
 The following example enables scripting, builds the ArduPlane firmware for the Cube, and uploads it.
 
 ```
@@ -15,7 +15,6 @@ $ waf plane --upload
 
 To run SITL you can simply use the `sim_vehicle.py` script which will wrap the configuration, compilation,
 and launching of the simulation into one command for you.
-
 
 ```
 $ Tools/autotest/sim_vehicle.py -v ArduPlane
@@ -49,6 +48,7 @@ return update, 1000   -- request "update" to be the first time 1000 milliseconds
 ```
 
 ## Examples
+
 See the [code examples folder](https://github.com/ArduPilot/ardupilot/tree/master/libraries/AP_Scripting/examples)
 
 ## Working with bindings

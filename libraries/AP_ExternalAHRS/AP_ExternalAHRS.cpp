@@ -74,6 +74,7 @@ const AP_Param::GroupInfo AP_ExternalAHRS::var_info[] = {
     // @DisplayName: External AHRS options
     // @Description: External AHRS options bitmask
     // @Bitmask: 0:Vector Nav use uncompensated values for accel gyro and mag.
+    // @Bitmask: 1:SBG uses EKF as GNSS.
     // @User: Standard
     AP_GROUPINFO("_OPTIONS", 3, AP_ExternalAHRS, options, 0),
 
@@ -86,7 +87,7 @@ const AP_Param::GroupInfo AP_ExternalAHRS::var_info[] = {
 
     // @Param: _LOG_RATE
     // @DisplayName: AHRS logging rate
-    // @Description: Logging rate for EARHS devices
+    // @Description: Logging rate for EAHRS devices
     // @Units: Hz
     // @User: Standard
     AP_GROUPINFO("_LOG_RATE", 5, AP_ExternalAHRS, log_rate, 10),
@@ -288,7 +289,7 @@ bool AP_ExternalAHRS::pre_arm_check(char *failure_msg, uint8_t failure_msg_len) 
         }
     }
     AP_AHRS &ahrs = AP::ahrs();
-    if (ahrs.ekf_type_parameter_value() == static_cast<int8_t>(AP_AHRS::EKFType::EXTERNAL)) {
+    if (ahrs.configured_ekf_type() == AP_AHRS::EKFType::EXTERNAL) {
         // when using EAHRS as the EKF source, we must have a valid position origin
         if (!state.have_origin) {
             hal.util->snprintf(failure_msg, failure_msg_len, "ExternalAHRS: No origin");

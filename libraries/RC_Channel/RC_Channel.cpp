@@ -231,7 +231,7 @@ const AP_Param::GroupInfo RC_Channel::var_info[] = {
     // @Values{Plane}: 160:Weathervane Enable
     // @Values{Copter}: 161:Turbine Start(heli)
     // @Values{Copter, Rover, Plane}: 162:FFT Tune
-    // @Values{Copter, Rover, Plane, Sub}: 163:Mount Lock
+    // @Values{Copter, Rover, Plane, Sub}: 163:Mount Yaw Lock
     // @Values{Copter, Rover, Plane, Blimp, Sub}: 164:Pause Stream Logging
     // @Values{Copter, Rover, Plane, Sub}: 165:Arm/Emergency Motor Stop
     // @Values{Copter, Rover, Plane, Blimp, Sub}: 166:Camera Record Video, 167:Camera Zoom, 168:Camera Manual Focus, 169:Camera Auto Focus
@@ -250,6 +250,8 @@ const AP_Param::GroupInfo RC_Channel::var_info[] = {
     // @Values{Copter}: 182: AHRS AutoTrim
     // @Values{Plane}: 183: AUTOLAND mode
     // @Values{Plane}: 184: System ID Chirp
+    // @Values{Copter, Rover, Plane, Blimp, Sub}:  185:Mount Roll/Pitch Lock
+    // @Values{Copter, Rover, Plane, Blimp, Sub}:  186:Mount POI Lock
     // @Values{Rover}: 201:Roll
     // @Values{Rover}: 202:Pitch
     // @Values{Rover}: 207:MainSail
@@ -790,8 +792,12 @@ void RC_Channel::init_aux_function(const AUX_FUNC ch_option, const AuxSwitchPos 
 #if HAL_MOUNT_ENABLED
     case AUX_FUNC::RETRACT_MOUNT1:
     case AUX_FUNC::RETRACT_MOUNT2:
-    case AUX_FUNC::MOUNT_LOCK:
-#endif
+    case AUX_FUNC::MOUNT_YAW_LOCK:
+    case AUX_FUNC::MOUNT_RP_LOCK:
+#if AP_MOUNT_POI_LOCK_ENABLED
+    case AUX_FUNC::MOUNT_POI_LOCK:
+#endif //AP_MOUNT_POI_LOCK_ENABLED
+#endif //HAL_MOUNT_ENABLED
 #if HAL_LOGGING_ENABLED
     case AUX_FUNC::LOG_PAUSE:
 #endif
@@ -911,8 +917,9 @@ const RC_Channel::LookupTable RC_Channel::lookuptable[] = {
     { AUX_FUNC::TURBINE_START, "Turbine Start"},
     { AUX_FUNC::FFT_NOTCH_TUNE, "FFT Notch Tuning"},
 #if HAL_MOUNT_ENABLED
-    { AUX_FUNC::MOUNT_LOCK, "MountLock"},
-#endif
+    { AUX_FUNC::MOUNT_YAW_LOCK, "Mount Yaw Lock"},
+    { AUX_FUNC::MOUNT_RP_LOCK, "Mount Roll/Pitch Lock"},
+#endif //HAL_MOUNT_ENABLED
 #if HAL_LOGGING_ENABLED
     { AUX_FUNC::LOG_PAUSE, "Pause Stream Logging"},
 #endif
@@ -940,7 +947,7 @@ const char *RC_Channel::string_for_aux_function(AUX_FUNC function) const
     return nullptr;
 }
 
-/* find string for postion */
+/* find string for position */
 const char *RC_Channel::string_for_aux_pos(AuxSwitchPos pos) const
 {
     switch (pos) {
@@ -1559,7 +1566,7 @@ bool RC_Channel::do_aux_function(const AuxFuncTrigger &trigger)
 #if AP_BATTERY_ENABLED
     case AUX_FUNC::BATTERY_MPPT_ENABLE:
         if (ch_flag != AuxSwitchPos::MIDDLE) {
-            AP::battery().MPPT_set_powered_state_to_all(ch_flag == AuxSwitchPos::HIGH);
+            AP::battery().set_powered_state_to_all(ch_flag == AuxSwitchPos::HIGH);
         }
         break;
 #endif
@@ -1781,7 +1788,7 @@ bool RC_Channel::do_aux_function(const AuxFuncTrigger &trigger)
         do_aux_function_retract_mount(ch_flag, 1);
         break;
 
-    case AUX_FUNC::MOUNT_LOCK: {
+    case AUX_FUNC::MOUNT_YAW_LOCK: {
         AP_Mount *mount = AP::mount();
         if (mount == nullptr) {
             break;
@@ -1789,6 +1796,49 @@ bool RC_Channel::do_aux_function(const AuxFuncTrigger &trigger)
         mount->set_yaw_lock(ch_flag == AuxSwitchPos::HIGH);
         break;
     }
+
+    case AUX_FUNC::MOUNT_RP_LOCK: {
+        AP_Mount *mount = AP::mount();
+        if (mount == nullptr) {
+            break;
+        }
+        //low is FPV:no ef locks,high is HORIZON lock:roll/pitch ef lock,middle is only pitch ef lock
+        switch (ch_flag) {
+        case AuxSwitchPos::HIGH:
+            mount->set_roll_lock(true);
+            mount->set_pitch_lock(true);
+            break;
+        case AuxSwitchPos::MIDDLE:
+            mount->set_roll_lock(false);
+            mount->set_pitch_lock(true);
+            break;
+        case AuxSwitchPos::LOW:
+            mount->set_roll_lock(false);
+            mount->set_pitch_lock(false);
+            break;
+        }
+        break;
+    }
+#if AP_MOUNT_POI_LOCK_ENABLED    
+   case AUX_FUNC::MOUNT_POI_LOCK: {
+        AP_Mount *mount = AP::mount();
+        if (mount == nullptr) {
+            break;
+        }
+        switch (ch_flag) {
+        case AuxSwitchPos::HIGH:
+            mount->set_poi_lock();
+            break;
+        case AuxSwitchPos::MIDDLE:
+            mount->suspend_poi_lock();
+            break;
+        case AuxSwitchPos::LOW:
+            mount->clear_poi_lock();
+            break;
+        }
+        break;
+    }
+#endif // AP_MOUNT_POI_LOCK_ENABLED
 
     case AUX_FUNC::MOUNT_LRF_ENABLE: {
         AP_Mount *mount = AP::mount();

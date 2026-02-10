@@ -699,6 +699,14 @@ void AP_Logger::setVehicle_Startup_Writer(vehicle_startup_message_Writer writer)
     _vehicle_messages = writer;
 }
 
+#if AP_RTC_LOGGING_ENABLED
+// Write RTC data
+void AP_Logger::Write_RTC()
+{
+    FOR_EACH_BACKEND(Write_RTC());
+}
+#endif  // AP_RTC_LOGGING_ENABLED
+
 void AP_Logger::set_vehicle_armed(const bool armed_state)
 {
     if (armed_state == _armed) {
@@ -907,6 +915,10 @@ void AP_Logger::Write_EntireMission()
 void AP_Logger::Write_Message(const char *message)
 {
     FOR_EACH_BACKEND(Write_Message(message));
+}
+void AP_Logger::Write_MessageChunk(uint8_t id, const char *messagechunk, uint8_t chunk_seq)
+{
+    FOR_EACH_BACKEND(Write_MessageChunk(id, messagechunk, chunk_seq));
 }
 
 void AP_Logger::Write_Mode(uint8_t mode, const ModeReason reason)
@@ -1370,8 +1382,8 @@ bool AP_Logger::fill_logstructure(struct LogStructure &logstruct, const uint8_t 
  * Tools/Replay/MsgHandler.cpp */
 int16_t AP_Logger::Write_calc_msg_len(const char *fmt) const
 {
-    uint8_t len =  LOG_PACKET_HEADER_LEN;
-    for (uint8_t i=0; i<strlen(fmt); i++) {
+    size_t len = LOG_PACKET_HEADER_LEN;
+    for (size_t i=0; i<strlen(fmt); i++) {
         switch(fmt[i]) {
         case 'a' : len += sizeof(int16_t[32]); break;
         case 'b' : len += sizeof(int8_t); break;
@@ -1401,7 +1413,10 @@ int16_t AP_Logger::Write_calc_msg_len(const char *fmt) const
             return -1;
         }
     }
-    return len;
+    if (len > LOG_PACKET_MAX_LEN) {
+        return -1;
+    }
+    return (int16_t)len;
 }
 
 /*
