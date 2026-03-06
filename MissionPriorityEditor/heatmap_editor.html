@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Project GLIDE - Mission Priority Editor</title>
+    <title>Project GLIDE - Mission Planning Tool</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -65,16 +65,16 @@
         .process-button:hover { background: #559942; }
         
         .search-container { position: relative; }
-        input[type="text"] { 
-            padding: 10px; 
-            width: calc(100% - 22px); 
+        input[type="text"], input[type="number"] { 
+            padding: 8px; 
+            width: calc(100% - 18px); 
             border-radius: 4px; 
             border: 1px solid #bdc3c7; 
             background: #f8f9fa; 
             color: #2c3e50; 
             font-size: 0.95rem;
         }
-        input[type="text"]:focus { outline: none; border-color: #2b769c; }
+        input[type="text"]:focus, input[type="number"]:focus { outline: none; border-color: #2b769c; }
         
         .dropdown-content {
             display: none;
@@ -107,6 +107,26 @@
             line-height: 1.4;
         }
         label { font-size: 0.9rem; font-weight: bold; color: #7f8c8d; }
+		
+		.param-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .param-col {
+            flex: 1;
+        }
+        .param-col label { font-size: 0.8rem; }
+
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .checkbox-row input { width: 18px; height: 18px; cursor: pointer; }
         
     </style>
 </head>
@@ -115,7 +135,7 @@
 <div id="sidebar">
     <div id="branding">
         <img src="ProjectGlideLogo.png" alt="Project GLIDE Logo" width="180" height="auto"><br>
-        <p id="title">Mission Priority Editor</p>
+        <p id="title">Mission Planning Tool</p>
     </div>
     
     <div class="search-container">
@@ -134,6 +154,38 @@
         <h3>2. Draw Priority Zones</h3>
         Use the map tools to draw the desired areas.<br><br>
         Assign a priority score (0 - 15).<br><br>
+    </div>
+	
+	<div class="info-box">
+        <h3>3. Altitude Constraints</h3>
+        <div class="param-row">
+            <div class="param-col">
+                <label>Floor (m)</label>
+                <input type="number" id="floorAlt" value="50" min="0">
+            </div>
+            <div class="param-col">
+                <label>Ceiling (m)</label>
+                <input type="number" id="ceilingAlt" value="120" min="0">
+            </div>
+        </div>
+    </div>
+	
+	<div class="info-box">
+        <h3>4. Mission Parameters</h3>
+        <div class="param-row">
+            <div class="param-col">
+                <label>Time (mins)</label>
+                <input type="number" id="missionTime" value="20" min="1">
+            </div>
+            <div class="param-col">
+                <label>Battery (mAh)</label>
+                <input type="number" id="startBattery" value="2200" min="100">
+            </div>
+        </div>
+        <div class="checkbox-row">
+            <input type="checkbox" id="reserveRth" checked>
+            <label style="color:#2c3e50; font-weight:normal; cursor:pointer;" for="reserveRth">Factor in Reserve RTH</label>
+        </div>
     </div>
 
     <button class="process-button" onclick="processMap()">Download .bin</button>
@@ -159,8 +211,8 @@
     });
 
     // MAP INIT
-	mapLat = 50.9097;
-	mapLon = -1.4044; // defaut to Soton
+	mapLat = 50.9350;
+	mapLon = -1.3940; // defaut to Soton
     const map = L.map('map', {
         zoomControl: false,
         layers: [cartoLight] 
@@ -328,17 +380,25 @@
             return;
         }
 		
-		let rawName = prompt("Enter a name for this mission:", "GLIDE_Mission_1");
+		let rawName = prompt("Enter a name for this mission:", "GLIDE_Mission_1"); // sanitise file name
 		if (rawName === null) return;
 		let safeName = rawName.trim().replace(/[^a-zA-Z0-9-_]/g, '_');
 		if (safeName.length === 0) {
             safeName = "GLIDE_Mission_1";
         }
+		
+		const headerSize = 20; // binary file header size
+		
+		const floorAlt = parseFloat(document.getElementById('floorAlt').value) || 0;
+        const ceilingAlt = parseFloat(document.getElementById('ceilingAlt').value) || 0;
+        
+        const missionTimeSeconds = (parseInt(document.getElementById('missionTime').value) || 0) * 60; // minutes to seconds
+        const startBattery = parseFloat(document.getElementById('startBattery').value) || 0;
+        const reserveRth = document.getElementById('reserveRth').checked ? 1 : 0;
 
         const width = 500;
         const height = 500;
-        const resolution_m = 10;
-        const headerSize = 20; 
+        const resolution_m = 10; 
         
         const totalCells = width * height;
         const payloadSize = totalCells / 2; 
@@ -356,10 +416,17 @@
         view.setUint16(12, width, true);
         view.setUint16(14, height, true);
         view.setFloat32(16, resolution_m, true);
+		
+		view.setFloat32(20, floorAlt, true);
+        view.setFloat32(24, ceilingAlt, true);
+        view.setFloat32(28, startBattery, true);
+        view.setUint16(32, missionTimeSeconds, true); // seconds
+        view.setUint8(34, reserveRth); // boolean 1 or 0
+		// Byte 35 is left implicitly as 0
 
         const packedData = new Uint8Array(buffer, headerSize);
 
-        const mPerLat = 111111;
+        const mPerLat = 111111; // metres per unit latitude - projection a concern?
         const mPerLng = 111111 * Math.cos(originLat * Math.PI / 180);
 
         for (let y = 0; y < height; y++) {
@@ -382,7 +449,7 @@
                     if (inside) totalCellScore += layer.options.priorityScore;
                 });
 
-                if (totalCellScore > 15) totalCellScore = 15;
+                if (totalCellScore > 15) totalCellScore = 15;  // clip to max 15
 
                 const cellIndex = y * width + x;
                 const byteIndex = Math.floor(cellIndex / 2);
