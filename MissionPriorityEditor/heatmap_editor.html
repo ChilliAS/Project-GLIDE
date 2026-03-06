@@ -468,7 +468,15 @@
         link.download = safeName + ".bin";
         link.click();
         
-        alert(`Processing Complete!\nData has been packed into '${safeName}.bin'.`);
+        alert(
+            `Processing Complete!\n\n` +
+            `Your mission data has been downloaded as: ` +
+            `'${safeName}.bin'\n\n` +
+            `IMPORTANT UPLOAD INSTRUCTIONS \n` +
+            `Before flying, you MUST:\n` +
+            `1. Rename this file to exactly: 'glide.bin'\n` +
+            `2. Place it inside the APM folder on the AP SD card.`
+        );
     }
 </script>
 </body>
