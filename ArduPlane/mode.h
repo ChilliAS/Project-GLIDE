@@ -52,6 +52,7 @@ public:
         AVOID_ADSB    = 14,
         GUIDED        = 15,
         INITIALISING  = 16,
+		FLY_BY_WIRE_T = 27,
 #if HAL_QUADPLANE_ENABLED
         QSTABILIZE    = 17,
         QHOVER        = 18,
@@ -662,6 +663,19 @@ protected:
     bool _enter() override;
 };
 
+class ModeFBWT : public ModeFBWA {
+public:
+    // Inherit the FBWA constructor
+    ModeFBWT() : ModeFBWA() {}
+
+    // We only need to override the main execution loop
+    void run() override;
+
+protected:
+    // We can use the exact same initialisation checks as FBWA
+    bool is_vtol_mode() const override { return false; }
+};
+
 class ModeCruise : public Mode
 {
 public:
@@ -1051,10 +1065,7 @@ public:
     // methods that affect movement of the vehicle in this mode
     void update() override;
 
-    // Update thermal tracking and exiting logic.
-    void update_soaring();
-
-    void navigate() override;
+    void run() override;
 
     bool allows_throttle_nudging() const override { return true; }
 
