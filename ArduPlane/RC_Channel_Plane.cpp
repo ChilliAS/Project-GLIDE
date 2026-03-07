@@ -96,27 +96,6 @@ void RC_Channel_Plane::do_aux_function_crow_mode(AuxSwitchPos ch_flag)
         }    
 }
 
-#if HAL_SOARING_ENABLED
-void RC_Channel_Plane::do_aux_function_soaring_3pos(AuxSwitchPos ch_flag)
-{
-    SoaringController::ActiveStatus desired_state = SoaringController::ActiveStatus::SOARING_DISABLED;
-
-    switch (ch_flag) {
-        case AuxSwitchPos::LOW:
-            desired_state = SoaringController::ActiveStatus::SOARING_DISABLED;
-            break;
-        case AuxSwitchPos::MIDDLE:
-            desired_state = SoaringController::ActiveStatus::MANUAL_MODE_CHANGE;
-            break;
-        case AuxSwitchPos::HIGH:
-            desired_state = SoaringController::ActiveStatus::AUTO_MODE_CHANGE;
-            break;
-        }
-
-    plane.g2.soaring_controller.set_pilot_desired_state(desired_state);
-}
-#endif
-
 void RC_Channel_Plane::do_aux_function_flare(AuxSwitchPos ch_flag)
 {
         switch(ch_flag) {
@@ -293,12 +272,6 @@ bool RC_Channel_Plane::do_aux_function(const AuxFuncTrigger &trigger)
         }
         break;
     }
-#endif
-
-#if HAL_SOARING_ENABLED
-    case AUX_FUNC::SOARING:
-        do_aux_function_soaring_3pos(ch_flag);
-        break;
 #endif
 
     case AUX_FUNC::FLAP:

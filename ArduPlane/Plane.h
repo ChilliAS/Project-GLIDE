@@ -155,6 +155,7 @@ public:
     friend class ModeAcro;
     friend class ModeFBWA;
     friend class ModeFBWB;
+	friend class ModeFBWT;
     friend class ModeCruise;
     friend class ModeAutoTune;
     friend class ModeAuto;
@@ -334,6 +335,8 @@ private:
 #endif
 #if HAL_SOARING_ENABLED
     ModeThermal mode_thermal;
+	ModeFBWT mode_fbwt;
+	SoaringController soaring_controller{TECS_controller, aparm};
 #endif
 
 #if AP_QUICKTUNE_ENABLED
@@ -1197,7 +1200,7 @@ private:
 
     // soaring.cpp
 #if HAL_SOARING_ENABLED
-    void update_soaring();
+    //void update_soaring();
 #endif
 
     // RC_Channel.cpp

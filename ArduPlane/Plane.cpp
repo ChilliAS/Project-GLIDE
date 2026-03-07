@@ -117,7 +117,7 @@ const AP_Scheduler::Task Plane::scheduler_tasks[] = {
     SCHED_TASK(update_logging25,        25,    300, 123),
 #endif
 #if HAL_SOARING_ENABLED
-    SCHED_TASK(update_soaring,         50,    400, 126),
+    //SCHED_TASK(update_soaring,         50,    400, 126),
 #endif
     SCHED_TASK(parachute_check,        10,    200, 129),
 #if AP_TERRAIN_AVAILABLE
