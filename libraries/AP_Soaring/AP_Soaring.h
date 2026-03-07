@@ -1,10 +1,6 @@
 /*
-  Soaring Controller class by Samuel Tabor
-
-  Provides a layer between the thermal centring algorithm and the main
-  code for managing navigation targets, data logging, tuning parameters,
-  algorithm inputs and eventually other soaring strategies such as
-  speed-to-fly. AP_TECS library used for reference.
+  Soaring Controller class
+  by Amhar S for Project GLIDE
 */
 
 #pragma once
@@ -12,152 +8,191 @@
 #include "AP_Soaring_config.h"
 #if HAL_SOARING_ENABLED
 
+#include <AP_TECS/AP_TECS.h>
+#include <AP_AHRS/AP_AHRS.h>
 #include <AP_Param/AP_Param.h>
 #include <AP_Math/AP_Math.h>
+#include <AP_Vehicle/AP_FixedWing.h>
+#include <stdio.h>
+
 #include "ExtendedKalmanFilter.h"
 #include "Variometer.h"
-#include "SpeedToFly.h"
-
-static constexpr float INITIAL_THERMAL_RADIUS = 80.0;
-static constexpr float INITIAL_STRENGTH_COVARIANCE = 0.0049;
-static constexpr float INITIAL_RADIUS_COVARIANCE = 400.0;
-static constexpr float INITIAL_POSITION_COVARIANCE = 400.0;
 
 
 class SoaringController {
-    Variometer::PolarParams _polarParams;
-    ExtendedKalmanFilter _ekf{};
-    class AP_TECS &_tecs;
-    Variometer _vario;
-    SpeedToFly _speedToFly;
-
-    const AP_FixedWing &_aparm;
-
-    // store aircraft location at last update
-    Vector3f _prev_update_location;
-
-    // store time thermal was entered for hysteresis
-    uint64_t _thermal_start_time_us;
-
-    // store position thermal was entered as a backup check
-    Vector3f _thermal_start_pos;
-
-    // store time cruise was entered for hysteresis
-    uint64_t _cruise_start_time_us;
-
-    // store time of last update
-    uint64_t _prev_update_time;
-
-    // store time of last NVT publish
-#if HAL_SOARING_NVF_EKF_ENABLED
-    uint32_t _prev_nvf_pub_time_ms;
-#endif // #if HAL_SOARING_NVF_EKF_ENABLED
-
-    bool _throttle_suppressed;
-
-    float McCready(float alt);
-
-    float _thermalability;
-
-    LowPassFilter<float> _position_x_filter{1/60.0};
-    LowPassFilter<float> _position_y_filter{1/60.0};
-
-protected:
-    AP_Int8 soar_active;
-    AP_Float thermal_vspeed;
-    AP_Float thermal_q1;
-    AP_Float thermal_q2;
-    AP_Float thermal_r;
-    AP_Float thermal_distance_ahead;
-    AP_Int16 min_thermal_s;
-    AP_Int16 min_cruise_s;
-    AP_Float alt_max;
-    AP_Float alt_min;
-    AP_Float alt_cutoff;
-    AP_Float max_drift;
-    AP_Float thermal_bank;
-    AP_Float soar_thermal_airspeed;
-    AP_Float soar_cruise_airspeed;
-    AP_Float soar_thermal_flap;
-
 public:
-    SoaringController(class AP_TECS &tecs, const AP_FixedWing &parms);
+    SoaringController(AP_TECS &tecs, const AP_FixedWing &parms); //takes TECS instead of AHRS to maintain compatibility with standard ArduPilot where poss
 
-    enum class LoiterStatus {
-        DISABLED,
-        ALT_TOO_HIGH,
-        ALT_TOO_LOW,
-        THERMAL_WEAK,
-        ALT_LOST,
-        DRIFT_EXCEEDED,
-        GOOD_TO_KEEP_LOITERING,
-        EXIT_COMMANDED,
-    };
+    // Call at loop rate -  20Hz
+    void update();
 
-    enum class ActiveStatus {
-        SOARING_DISABLED,
-        MANUAL_MODE_CHANGE,
-        AUTO_MODE_CHANGE
-    };
-
-    AP_Float max_radius;
-
-    // this supports the TECS_* user settable parameters
     static const struct AP_Param::GroupInfo var_info[];
-    void get_target(Location & wp);
-    bool suppress_throttle();
-    bool check_thermal_criteria();
-    LoiterStatus check_cruise_criteria(Vector2f prev_wp, Vector2f next_wp);
-    void init_thermalling();
+	
+	// interfaces from old soaring code expected by other libraries
+	enum class ActiveStatus { 
+        SOARING_DISABLED = 0,
+        SOARING_ENABLED = 1,
+		MANUAL_MODE_CHANGE = 2,
+		AUTO_MODE_CHANGE = 3
+    };
+	
+	float get_vario_reading() const { return _vario.reading; }
     void init_cruising();
-    void update_thermalling();
-    void update_cruising();
-    void set_throttle_suppressed(bool suppressed);
-
-    bool get_throttle_suppressed() const
-    {
-        return _throttle_suppressed;
-    }
-
-    float get_vario_reading() const
-    {
-        return _vario.get_displayed_value();
-    }
-
-    void update_vario();
-
-    bool check_drift(Vector2f prev_wp, Vector2f next_wp);
-
+    bool get_throttle_suppressed() const;
+    bool is_active() const { return soar_enable > 0; }
     void update_active_state(bool override_disable);
+	float get_thermalling_target_airspeed() const;
+	float get_cruising_target_airspeed() const;
+	int8_t get_thermalling_flap() const { return 0; }
+	float get_alt_cutoff() const;
 
-    bool is_active() const {return _last_update_status>=SoaringController::ActiveStatus::MANUAL_MODE_CHANGE;};
+    // DATA STRUCTURES
+	// 36-byte binary header for heatmap
+	struct PACKED HeatmapHeader {
+        uint32_t magic;           // 0x47503533 ('GP53')
+        int32_t origin_lat_e7;    // Lat * 10^7
+        int32_t origin_lng_e7;    // Lng * 10^7
+        uint16_t grid_width;      // Grid Width (cells)
+        uint16_t grid_height;     // Grid Height (cells)
+        float resolution_m;       // Cell size (m)
+        
+        // Mission Parameters
+        float floor_alt;          // Min altitude (m)
+        float ceiling_alt;        // Max altitude (m)
+        float start_battery_mah;  // Planned Battery Capacity
+        uint16_t mission_time_s;  // Mission time (seconds)
+        uint8_t reserve_rth;      // 1 = enable
+        uint8_t padding;          // padding
+    };
+    
+    // throttle settings and associated performance
+    struct PerformanceStep {
+        int8_t throttle_pct;
+        float power_amps;
+        float vz_still_air;
+    };
 
-    void set_pilot_desired_state(ActiveStatus pilot_desired_state) {_pilot_desired_state = pilot_desired_state;};
+    // action space
+    struct SoaringAction {
+        float bank_angle;      // Deg
+        int8_t throttle_pct;   // %
+        
+        // Reward Breakdown for Logging
+        float score_total;     
+        float score_mission;   
+        float score_energy;    
+        float score_safety;    
+        float current_lambda;  
+        
+        bool is_valid;         
+    };
+	
+	// parameters from vehicle - by decoupling soaring controller from AP - can do unit testing
+	struct VehicleState {
+        float alt_m;
+        float tas_m_s;
+        float yaw_rad;
+        Vector3f wind;
+        Location current_loc;
+        float battery_remaining_mah;
+        uint32_t time_ms;
+		bool is_armed;
+        float dist_to_home_m;
+        float cruise_spd_m_s;
+    };
 
-    float get_alt_cutoff() const {return alt_cutoff;}
-
-    float get_circling_time() const {return _vario.tau;}
-
-    float get_thermalling_radius() const;
-
-    float get_thermalling_target_airspeed();
-
-    float get_cruising_target_airspeed();
-
-    float get_thermalling_flap() const
-    {
-        return soar_thermal_flap;
-    }
+    // Thermal Memory
+    struct ThermalObject {
+        Location center_loc; 
+        float strength_w0;   // Peak lift (m/s)
+        float radius_r0;     // Radius (m)
+        uint32_t last_update_ms; 
+        bool active;         
+    };
+	
+	float get_target_bank_angle_cd() const;
+	int8_t get_target_throttle_pct() const;
+	float _lambda_lagrange = 0.5f;   // "cost" of energy (0-1)
+	
+	void load_heatmap(); 				// Load heatmap and parameters from file
+	void update_strategic_loop(const VehicleState &state);       // Strategic Loop
+	SoaringAction calculate_optimal_action(const VehicleState &state);
+	
+	// Failsafe
+	bool is_healthy() const;
+    uint8_t get_failsafe_action() const;
 
 private:
+    // AP Objects
+	AP_TECS &_tecs;
+    AP_AHRS &_ahrs;
+	const AP_FixedWing &_aparm;
+	Variometer::PolarParams _polar_params;
+	
+	Variometer _vario;
+    ExtendedKalmanFilter _ekf;
 
-    ActiveStatus _last_update_status;
+    // PARAMETER
+    AP_Int8  soar_enable;       // 1 = Active
+    AP_Float soar_beta;         // Mission vs Energy factor
+    AP_Int8  soar_map_rad;      // Heatmap Search Radius (cells)
+    AP_Float max_gsd_alt;       // Optimal altitude (m)
+    AP_Float cmdp_alpha;        // Learning rate
+	AP_Int8  soar_fs_action;    // 0 = RTL, 1 = FBWA
+	AP_Float soar_v_glide;      // Target airspeed when gliding/thermalling
+	
+	// from mission file
+	float _mission_alt_min = 50.0f;     
+    float _mission_alt_max = 120.0f;    
+    float _mission_batt_mah = 5000.0f;  
+    uint32_t _mission_time_s = 1800;    
+    bool _mission_rth_enable = true;
 
-    ActiveStatus _pilot_desired_state = ActiveStatus::AUTO_MODE_CHANGE;
+    // INTERNAL STATE
+    // Strategic Loop
+    
+    float _budget_slope = 0.0f;      // Expected mAh consumption per second
+    uint32_t _start_time_ms = 0;     // Mission start time
+    float _start_batt_cap = 0.0f;    // Battery capacity at start
+    uint32_t _last_strategic_update_ms = 0;
+	uint32_t _last_tactical_update_ms = 0;
+	
+	Location _nearest_target;
+    bool _has_nearest_target = false;
+	uint8_t _nearest_target_score = 0;
 
-    ActiveStatus active_state(bool override_disable) const;
+    SoaringAction _last_action;
+    float _last_best_score = -FLT_MAX;
 
-    bool _exit_commanded;
+    // Thermal Memory
+    static const uint8_t MAX_THERMALS = 10;
+    ThermalObject _thermal_memory[MAX_THERMALS];
+	uint32_t _last_thermal_update_ms = 0;
+
+    // Heatmap Config
+    uint8_t *_heatmap_data = nullptr; 
+    int16_t _grid_width = 500;
+    int16_t _grid_height = 500;
+    float _grid_resolution_m = 10.0f;
+    Location _heatmap_origin;
+
+    // Constants
+    static const PerformanceStep _perf_table[3];
+
+    // FUNCTIONS
+    
+    // Core Logic
+	VehicleState get_current_state();
+	void update_thermals(const VehicleState &state, float dt);
+
+    // Helpers
+    Location predict_position_future(const VehicleState &state, float bank_angle, float dt);
+    float predict_thermal_lift(const VehicleState &state, const Location &pred_loc);
+    float get_local_density_score(const Location &loc);
+    bool get_grid_coords_from_loc(const Location &loc, int16_t &x, int16_t &y);
+
+    // Logging & Output
+    void Log_Write_Soaring(const SoaringAction &action);
 };
 
 #endif // HAL_SOARING_ENABLED

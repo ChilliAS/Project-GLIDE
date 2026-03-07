@@ -72,6 +72,7 @@ void GCS_Plane::update_vehicle_sensor_status_flags(void)
     case Mode::Number::QRTL:
     case Mode::Number::LOITER_ALT_QLAND:
 #endif
+	case Mode::Number::FLY_BY_WIRE_T:
     case Mode::Number::THERMAL:
         rate_controlled = true;
         attitude_stabilized = true;

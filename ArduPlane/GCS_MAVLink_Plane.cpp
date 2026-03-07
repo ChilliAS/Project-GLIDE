@@ -54,6 +54,7 @@ uint8_t GCS_MAVLINK_Plane::base_mode() const
     case Mode::Number::AUTO:
     case Mode::Number::RTL:
     case Mode::Number::LOITER:
+	case Mode::Number::FLY_BY_WIRE_T:
     case Mode::Number::THERMAL:
     case Mode::Number::AVOID_ADSB:
     case Mode::Number::GUIDED:
