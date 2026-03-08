@@ -70,6 +70,23 @@ const AP_Param::GroupInfo SoaringController::var_info[] = {
     // @Description: Mode to switch to if soaring controller becomes unhealthy. 0:RTL, 1:FBWA.
     // @Values: 0:RTL, 1:FBWA
     AP_GROUPINFO("FS_SOAR", 10, SoaringController, soar_fs_action, 1),
+	
+	// @Param: CAM_HFOV
+    // @DisplayName: Camera Horizontal FOV
+    // @Description: Horizontal FOV in degrees (across the flight path).
+    // @Range: 10 150
+    AP_GROUPINFO("CAM_HFOV", 11, SoaringController, soar_cam_hfov, 102.0f),
+
+    // @Param: CAM_VFOV
+    // @DisplayName: Camera Vertical FOV
+    // @Description: Vertical FOV in degrees (along the flight path).
+    // @Range: 10 150
+    AP_GROUPINFO("CAM_VFOV", 12, SoaringController, soar_cam_vfov, 67.0f),
+
+    // @Param: DEP_FACT
+    // @DisplayName: Cell Depletion Factor
+    // @Description: Multiplier applied to cell score per second when overflown (0.0 to 1.0).
+    AP_GROUPINFO("DEP_FACT", 13, SoaringController, soar_dep_fact, 0.5f),
 
     AP_GROUPEND
 };
@@ -154,7 +171,6 @@ void SoaringController::load_heatmap() {
 }
 
 // Get A/C state information - decouple hardware to allow unit testing of soaring controller
-
 SoaringController::VehicleState SoaringController::get_current_state() {
     VehicleState state;
     
@@ -165,7 +181,9 @@ SoaringController::VehicleState SoaringController::get_current_state() {
         state.tas_m_s = _aparm.airspeed_cruise; 
     }
     
-    state.yaw_rad = _ahrs.get_yaw();
+	const Matrix3f &rot = AP::ahrs().get_rotation_body_to_ned();
+	Vector3f forward = rot * Vector3f(1,0,0);
+    state.heading_true_rad = atan2f(forward.y, forward.x);
     state.wind = _ahrs.wind_estimate();
     _ahrs.get_location(state.current_loc);
 	
@@ -186,7 +204,7 @@ SoaringController::VehicleState SoaringController::get_current_state() {
     return state;
 }
 
-// Main Soaring Loop - call at 20Hz. This triggers the: strategic loop, thermal update, tactical loop, and sets the throttle
+// Main Soaring Loop - call at 20Hz. This triggers the: vehicle state fetch, strategic loop, thermal update, tactical loop
 void SoaringController::update() {
     if (!soar_enable) return;
 	
@@ -194,13 +212,13 @@ void SoaringController::update() {
 
     VehicleState state = get_current_state();
 
-// 1. Run Strategic Loop (1Hz)
+    // Strategic Loop
     if (state.time_ms - _last_strategic_update_ms >= 1000) {
         update_strategic_loop(state);
         _last_strategic_update_ms = state.time_ms;
     }
 
-    // 2. Run Tactical Loop & Estimators (20Hz / 50ms)
+    // Tactical Loop
     if (state.time_ms - _last_tactical_update_ms >= 50) {
         float dt = (state.time_ms - _last_tactical_update_ms) * 0.001f;
 		update_thermals(state, dt);
@@ -289,6 +307,83 @@ void SoaringController::update_strategic_loop(const VehicleState &state) {
     _lambda_lagrange += (cmdp_alpha.get() * error);
     _lambda_lagrange = constrain_float(_lambda_lagrange, 0.0f, 1.0f);
 	
+	// mission cell depletion
+    bool grid_updated = false;
+    
+    if (_heatmap_data != nullptr && state.alt_m > 0) {
+        
+        // swath calc
+        float hfov_rad = radians(soar_cam_hfov.get());
+        float vfov_rad = radians(soar_cam_vfov.get());
+        float swath_width_m = 2.0f * state.alt_m * tanf(hfov_rad * 0.5f);  // cross track
+        float swath_height_m = 2.0f * state.alt_m * tanf(vfov_rad * 0.5f); // along track
+        
+        // Need whole cell within swath - max distance from a to corner is (res * sqrt(2) / 2)
+        float cell_margin = _grid_resolution_m * 0.7071f; 
+        float max_local_x = (swath_height_m * 0.5f) - cell_margin; 
+        float max_local_y = (swath_width_m * 0.5f) - cell_margin;
+        
+        if (max_local_x > 0 && max_local_y > 0) { // sanity check swath larger than cell - eg. not on the ground
+            
+            int16_t plane_cx, plane_cy;
+            if (get_grid_coords_from_loc(state.current_loc, plane_cx, plane_cy)) {
+                
+                // max grid area we need to check whether falls in swath
+                float max_swath_dim = MAX(swath_width_m, swath_height_m);
+                int16_t cell_rad = ceilf((max_swath_dim * 0.5f) / _grid_resolution_m);
+                
+                float cos_heading = cosf(state.heading_true_rad);
+                float sin_heading = sinf(state.heading_true_rad);
+                float dep_factor = constrain_float(soar_dep_fact.get(), 0.0f, 1.0f);
+                
+                for (int16_t y = plane_cy - cell_rad; y <= plane_cy + cell_rad; y++) {
+                    for (int16_t x = plane_cx - cell_rad; x <= plane_cx + cell_rad; x++) {
+                        
+                        if (x >= 0 && x < _grid_width && y >= 0 && y < _grid_height) {
+                            
+                            float dx_m = (x - plane_cx) * _grid_resolution_m; // dist from plane to cell center
+                            float dy_m = (y - plane_cy) * _grid_resolution_m;
+                            
+                            // aircraft local frame x y
+                            float local_x = (dy_m * cos_heading) + (dx_m * sin_heading);
+                            float local_y = (dx_m * cos_heading) - (dy_m * sin_heading);
+                            
+                            // check cell center within margins
+                            if (fabsf(local_x) <= max_local_x && fabsf(local_y) <= max_local_y) {
+                                
+                                uint32_t cell_index = y * _grid_width + x;
+                                uint32_t byte_index = cell_index / 2;
+                                uint8_t raw_byte = _heatmap_data[byte_index];
+                                
+                                bool is_even = (cell_index % 2 == 0);
+                                uint8_t val = is_even ? (raw_byte >> 4) : (raw_byte & 0x0F);
+                                
+                                if (val > 0) {
+                                    uint8_t new_val = (uint8_t)(val * dep_factor);
+                                    
+                                    // Only write value changes
+                                    if (new_val != val) {
+                                        if (is_even) {
+                                            _heatmap_data[byte_index] = (raw_byte & 0x0F) | (new_val << 4);
+                                        } else {
+                                            _heatmap_data[byte_index] = (raw_byte & 0xF0) | (new_val & 0x0F);
+                                        }
+                                        grid_updated = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Dump new grid to SD if changes made
+    if (grid_updated) {
+        save_heatmap();
+    }
+	
 	// locate nearest target for global pull
 	_has_nearest_target = false;
 	
@@ -296,11 +391,12 @@ void SoaringController::update_strategic_loop(const VehicleState &state) {
         int16_t curr_x, curr_y;
         if (get_grid_coords_from_loc(state.current_loc, curr_x, curr_y)) {
             
-            int32_t min_dist_sq = INT32_MAX;
+            float max_attraction = -1.0f;
             int16_t nearest_x = -1;
             int16_t nearest_y = -1;
-			uint8_t nearest_val = 0;
-            const int16_t stride = 3; // 1/9th of grid to save CPU
+            uint8_t nearest_val = 0;
+            
+            const int16_t stride = 3; 
             
             for (int16_t y = 0; y < _grid_height; y += stride) {
                 for (int16_t x = 0; x < _grid_width; x += stride) {
@@ -309,21 +405,27 @@ void SoaringController::update_strategic_loop(const VehicleState &state) {
                     uint8_t raw_byte = _heatmap_data[byte_index];
 
                     uint8_t val = (cell_index % 2 == 0) ? (raw_byte >> 4) : (raw_byte & 0x0F);
-                    // If this cell has a mission priority score
+                    
                     if (val > 0) {
                         int32_t dx = x - curr_x;
                         int32_t dy = y - curr_y;
-                        int32_t dist_sq = (dx * dx) + (dy * dy); // Fast squared distance
-                        if (dist_sq < min_dist_sq) {
-                            min_dist_sq = dist_sq;
+                        int32_t dist_sq = (dx * dx) + (dy * dy); 
+                        
+                        // Prevent division by zero
+                        if (dist_sq == 0) dist_sq = 1;
+                        // Priority Score divided by Squared Distance
+                        float attraction = (float)val / (float)dist_sq;
+                        
+                        if (attraction > max_attraction) {
+                            max_attraction = attraction;
                             nearest_x = x;
                             nearest_y = y;
-							nearest_val = val;
+                            nearest_val = val;
                         }
                     }
                 }
             }
-            
+			
             if (nearest_x != -1) {
                 _nearest_target = _heatmap_origin;
                 // Offset: Y is North, X is East
@@ -344,7 +446,7 @@ SoaringController::SoaringAction SoaringController::calculate_optimal_action(con
     const float k_safe = 50.0f;
     const float k_greed = 5.0f;
     const float epsilon = 0.05f;
-    const float buffer = 30.0f;
+    const float buffer = 5.0f;
 
 
     for (int bank = -45; bank <= 45; bank += 5) {
@@ -374,8 +476,8 @@ SoaringController::SoaringAction SoaringController::calculate_optimal_action(con
 
             float r_mis = 0.0f;
             if (pred_alt > 0) {
-                float gsd_factor = MIN(1.0f, pred_alt / max_gsd_alt.get());
-                r_mis = (1.0f - _lambda_lagrange) * mission_density * gsd_factor * soar_beta.get();
+                //float gsd_factor = MIN(1.0f, pred_alt / max_gsd_alt.get());
+                r_mis = (1.0f - _lambda_lagrange) * mission_density * 1 * soar_beta.get();
             }
 
             float r_greed = 0.0f;
@@ -398,9 +500,14 @@ SoaringController::SoaringAction SoaringController::calculate_optimal_action(con
 
             float total = r_mis + r_eng + r_safe;
 			
-			// hysteresis factor +0.05 for doing the same thing again
-			if (bank == _last_action.bank_angle && step.throttle_pct == _last_action.throttle_pct) {
-                total += 0.05f;
+			// general hysteresis factor +0.005 for doing the same thing again
+			if (fabsf((float)bank - _last_action.bank_angle) < 0.5f && step.throttle_pct == _last_action.throttle_pct) {
+                total += 0.001f;
+            }
+			
+			// Motor start penalty
+            if (_last_action.throttle_pct == 0 && step.throttle_pct > 0) {
+                total -= 0.5f;
             }
 
             if (total > best_action.score_total) {
@@ -429,10 +536,10 @@ Location SoaringController::predict_position_future(const VehicleState &state, f
     float bank_rad = radians(constrain_float(bank_angle, -60, 60));
     float rate = (9.81f * tanf(bank_rad)) / MAX(state.tas_m_s, 1.0f); // no div by zero
 
-    float avg_yaw = state.yaw_rad + (rate * dt * 0.5f);
+    float avg_heading = state.heading_true_rad + (rate * dt * 0.5f);
 
-    float vn = (state.tas_m_s * cosf(avg_yaw)) + state.wind.x;
-    float ve = (state.tas_m_s * sinf(avg_yaw)) + state.wind.y;
+    float vn = (state.tas_m_s * cosf(avg_heading)) + state.wind.x;
+    float ve = (state.tas_m_s * sinf(avg_heading)) + state.wind.y;
 
     loc.offset(vn * dt, ve * dt);
     return loc;
@@ -505,7 +612,7 @@ float SoaringController::get_local_density_score(const Location &loc) {
 
 bool SoaringController::get_grid_coords_from_loc(const Location &loc, int16_t &x, int16_t &y) {
     if (_heatmap_origin.is_zero()) return false;
-    Vector2f off = loc.get_distance_NE(_heatmap_origin);
+	Vector2f off = _heatmap_origin.get_distance_NE(loc);
     x = (int16_t)(off.y / _grid_resolution_m); 
     y = (int16_t)(off.x / _grid_resolution_m); 
     return true;
@@ -550,6 +657,38 @@ void SoaringController::Log_Write_Soaring(const SoaringAction &action) {
 #endif
 }
 
+void SoaringController::save_heatmap() {
+    if (_heatmap_data == nullptr) return;
+
+    const char* fname = "/fs/microsd/APM/glide_live.bin";
+    FILE *f = fopen(fname, "wb");
+    if (!f) f = fopen("glide_live.bin", "wb"); // SITL fallback
+    if (!f) f = fopen("libraries/AP_Soaring/tests/glide_live.bin", "wb"); // Unit test fallback
+
+    if (!f) return;
+
+    // header
+    HeatmapHeader header;
+    header.magic = 0x47503533;
+    header.origin_lat_e7 = _heatmap_origin.lat;
+    header.origin_lng_e7 = _heatmap_origin.lng;
+    header.grid_width = _grid_width;
+    header.grid_height = _grid_height;
+    header.resolution_m = _grid_resolution_m;
+    header.floor_alt = _mission_alt_min;
+    header.ceiling_alt = _mission_alt_max;
+    header.start_battery_mah = _mission_batt_mah;
+    header.mission_time_s = _mission_time_s;
+    header.reserve_rth = _mission_rth_enable ? 1 : 0;
+    fwrite(&header, 1, sizeof(header), f);
+    
+    // modified grid
+    uint32_t payload_size = (_grid_width * _grid_height) / 2;
+    fwrite(_heatmap_data, 1, payload_size, f);
+    
+    fclose(f);
+}
+
 //Pass roll command and throttle pct to autopilot
 float SoaringController::get_target_bank_angle_cd() const {
     if (!_last_action.is_valid) {
@@ -591,27 +730,33 @@ void SoaringController::update_active_state(bool override_disable) {
         return;
     }
 }
+
 void SoaringController::init_cruising() {
     // Reset timers so the controller doesn't use stale data
     _last_tactical_update_ms = AP_HAL::millis();
     _last_best_score = -FLT_MAX;
 }
+
 bool SoaringController::get_throttle_suppressed() const {
     return (soar_enable > 0 && _last_action.throttle_pct == 0);
 }
+
 float SoaringController::get_thermalling_target_airspeed() const {
     if (soar_v_glide.get() < 0.1f) {
         return _aparm.airspeed_cruise;
     }
     return constrain_float(soar_v_glide.get(), _aparm.airspeed_min, _aparm.airspeed_max);
 }
+
 float SoaringController::get_cruising_target_airspeed() const {
     if (soar_v_glide.get() < 0.1f) {
         return _aparm.airspeed_cruise;
     }
     return constrain_float(soar_v_glide.get(), _aparm.airspeed_min, _aparm.airspeed_max);
 }
+
 float SoaringController::get_alt_cutoff() const {
     return _mission_alt_max;
 }
+
 #endif // HAL_SOARING_ENABLED

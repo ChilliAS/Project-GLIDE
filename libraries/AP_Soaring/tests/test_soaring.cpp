@@ -27,7 +27,16 @@ TEST(SoaringTest, RunDecoupledCSV) {
     if (!file.is_open()) {
         FAIL() << "CRITICAL: Could not open flight_data.csv!";
     }
-
+	
+	// Create output file
+	std::cout << "[ INFO ] Creating test_output.csv...\n";
+    std::ofstream out_file("libraries/AP_Soaring/tests/test_output.csv");
+    if (!out_file.is_open()) {
+        FAIL() << "CRITICAL: Could not create test_output.csv!";
+    }
+	
+	out_file << "Time(ms),Lambda,Bank(deg),Thr(%),TotScore,MisScore,EngScore,SafScore\n";
+	
 	std::cout << "\n--- WAF TEST ---\n";    
     std::cout << std::left 
               << std::setw(10) << "Time(ms)"
@@ -54,7 +63,7 @@ TEST(SoaringTest, RunDecoupledCSV) {
         if (std::getline(ss, val, ',')) state.time_ms = std::stoul(val);
         if (std::getline(ss, val, ',')) state.alt_m = std::stof(val);
         if (std::getline(ss, val, ',')) state.tas_m_s = std::stof(val);
-        if (std::getline(ss, val, ',')) state.yaw_rad = std::stof(val);
+        if (std::getline(ss, val, ',')) state.heading_true_rad = std::stof(val) * (M_PI / 180.0f);
         if (std::getline(ss, val, ',')) state.wind.x = std::stof(val);
         if (std::getline(ss, val, ',')) state.wind.y = std::stof(val);
         if (std::getline(ss, val, ',')) state.current_loc.lat = std::stoi(val);
@@ -88,7 +97,19 @@ TEST(SoaringTest, RunDecoupledCSV) {
                   << std::setw(12) << std::setprecision(4) << action.score_energy
                   << std::setw(12) << std::setprecision(4) << action.score_safety
                   << "\n";
+				  
+		out_file << std::fixed
+                 << state.time_ms << ","
+                 << std::setprecision(4) << action.current_lambda << ","
+                 << std::setprecision(1) << action.bank_angle << ","
+                 << (int)action.throttle_pct << ","
+                 << std::setprecision(4) << action.score_total << ","
+                 << std::setprecision(4) << action.score_mission << ","
+                 << std::setprecision(4) << action.score_energy << ","
+                 << std::setprecision(4) << action.score_safety << "\n";
+    
     }
+	out_file.close();
 }
 
 AP_GTEST_MAIN()

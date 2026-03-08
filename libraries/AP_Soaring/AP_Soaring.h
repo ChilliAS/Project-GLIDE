@@ -91,7 +91,7 @@ public:
 	struct VehicleState {
         float alt_m;
         float tas_m_s;
-        float yaw_rad;
+        float heading_true_rad;
         Vector3f wind;
         Location current_loc;
         float battery_remaining_mah;
@@ -121,6 +121,7 @@ public:
 	// Failsafe
 	bool is_healthy() const;
     uint8_t get_failsafe_action() const;
+	
 
 private:
     // AP Objects
@@ -140,6 +141,9 @@ private:
     AP_Float cmdp_alpha;        // Learning rate
 	AP_Int8  soar_fs_action;    // 0 = RTL, 1 = FBWA
 	AP_Float soar_v_glide;      // Target airspeed when gliding/thermalling
+	AP_Float soar_cam_hfov;     // Camera horizontal FOV
+    AP_Float soar_cam_vfov;		// Camera vertical FOV
+    AP_Float soar_dep_fact;		// Mission Cell Depletion factor (priority/second)
 	
 	// from mission file
 	float _mission_alt_min = 50.0f;     
@@ -193,6 +197,7 @@ private:
 
     // Logging & Output
     void Log_Write_Soaring(const SoaringAction &action);
+	void save_heatmap();
 };
 
 #endif // HAL_SOARING_ENABLED
