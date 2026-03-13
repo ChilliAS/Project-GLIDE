@@ -17,6 +17,7 @@
 
 #include "ExtendedKalmanFilter.h"
 #include "Variometer.h"
+#include <AP_Logger/AP_Logger.h>
 
 
 class SoaringController {
@@ -39,7 +40,7 @@ public:
 	float get_vario_reading() const { return _vario.reading; }
     void init_cruising();
     bool get_throttle_suppressed() const;
-    bool is_active() const { return soar_enable > 0; }
+    bool is_active() const { return soar_enable.get() > 0; }
     void update_active_state(bool override_disable);
 	float get_thermalling_target_airspeed() const;
 	float get_cruising_target_airspeed() const;
@@ -119,7 +120,7 @@ public:
 	SoaringAction calculate_optimal_action(const VehicleState &state);
 	
 	// Failsafe
-	bool is_healthy() const;
+	bool is_healthy();
     uint8_t get_failsafe_action() const;
 	
 
@@ -197,6 +198,7 @@ private:
 
     // Logging & Output
     void Log_Write_Soaring(const SoaringAction &action);
+	void log_state_to_csv(const VehicleState &state, const SoaringAction &action);
 	void save_heatmap();
 };
 

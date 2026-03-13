@@ -9,7 +9,7 @@
 #include <SRV_Channel/SRV_Channel.h>
 #include <stdint.h>
 
-#define LOG_SOAR_REWARD_MSG 150
+static const uint8_t LOG_SOAR_REWARD_MSG = 201;
 
 extern const AP_HAL::HAL& hal;
 
@@ -102,7 +102,8 @@ SoaringController::SoaringController(AP_TECS &tecs, const AP_FixedWing &parms) :
     _tecs(tecs),
 	_ahrs(AP::ahrs()),
     _aparm(parms),
-    _vario(parms, _polar_params) // Variometer needs airframe params for polar
+    _vario(parms, _polar_params), // Variometer needs airframe params for polar
+	_last_action{} 
 {
     AP_Param::setup_object_defaults(this, var_info);
     
@@ -112,32 +113,40 @@ SoaringController::SoaringController(AP_TECS &tecs, const AP_FixedWing &parms) :
     for (uint8_t i = 0; i < MAX_THERMALS; i++) {
         _thermal_memory[i].active = false;
     }
-	
+		
 }
 
-// function to load data from file
+// function to load data from file - currently will only load one map - potential to refresh in flight in future (with rate limit)
 void SoaringController::load_heatmap() {
     if (_heatmap_data != nullptr) return;
+
+    // I/O rate limit
+    static uint32_t last_attempt_ms = 0;
+    uint32_t now = AP_HAL::millis();
+    if (last_attempt_ms != 0 && (now - last_attempt_ms) < 5000) {
+        return;
+    }
+    last_attempt_ms = now;
 
     const char* fname = "/fs/microsd/APM/glide.bin";
     FILE *f = fopen(fname, "rb");
     if (!f) f = fopen("glide.bin", "rb"); // SITL fallback
-	if (!f) f = fopen("libraries/AP_Soaring/tests/glide.bin", "rb"); // Unit test fallback
+    if (!f) f = fopen("libraries/AP_Soaring/tests/glide.bin", "rb"); // Unit test fallback
 
     if (!f) {
-        //GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "GLIDE: No glide.bin found!");
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "GLIDE: No glide.bin found! Retrying in 5s...");
         return;
     }
 
     HeatmapHeader header;
     if (fread(&header, 1, sizeof(header), f) != sizeof(header)) {
-        //GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "GLIDE: File too short");
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "GLIDE: File too short");
         fclose(f);
         return;
     }
 
     if (header.magic != 0x47503533) {
-        //GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "GLIDE: Invalid Magic Number");
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "GLIDE: Invalid Magic Number");
         fclose(f);
         return;
     }
@@ -161,7 +170,7 @@ void SoaringController::load_heatmap() {
     
     if (_heatmap_data != nullptr) {
         if (fread(_heatmap_data, 1, payload_size, f) == payload_size) {
-            //GCS_SEND_TEXT(MAV_SEVERITY_INFO, "GLIDE: Mission Loaded");
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "GLIDE: Mission Loaded");
         } else {
             free(_heatmap_data);
             _heatmap_data = nullptr;
@@ -208,13 +217,30 @@ SoaringController::VehicleState SoaringController::get_current_state() {
 void SoaringController::update() {
     if (!soar_enable) return;
 	
-	load_heatmap(); // this is done here instead of on intilisation to ensure it is only called when the fs has been mounted properly. the nullptr check means it should only run once
-
+	auto check_err = [](const char* location) {
+        static uint32_t last_err_count = 0;
+        uint32_t err_count = AP::internalerror().count();
+        if (err_count != last_err_count) {
+            last_err_count = err_count;
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "GLIDE: fault after %s", location);
+        }
+    };
+	
+	static uint32_t last_err_count = 0;
+    uint32_t err_count = AP::internalerror().count();
+    if (err_count != last_err_count) {
+        last_err_count = err_count;
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "GLIDE: Internal error at line %u",
+                      (unsigned)AP::internalerror().last_error_line());
+    }	
+	
     VehicleState state = get_current_state();
+	check_err("get_current_state");
 
     // Strategic Loop
     if (state.time_ms - _last_strategic_update_ms >= 1000) {
         update_strategic_loop(state);
+		check_err("update_strategic_loop");
         _last_strategic_update_ms = state.time_ms;
     }
 
@@ -222,11 +248,15 @@ void SoaringController::update() {
     if (state.time_ms - _last_tactical_update_ms >= 50) {
         float dt = (state.time_ms - _last_tactical_update_ms) * 0.001f;
 		update_thermals(state, dt);
+		check_err("update_thermals");
         
         SoaringAction action = calculate_optimal_action(state);
+		check_err("calculate_optimal_action");
+		
+		log_state_to_csv(state, action);
 
         if (action.is_valid) {
-            Log_Write_Soaring(action);
+            //Log_Write_Soaring(action);
             _last_action = action; 
         }
         _last_tactical_update_ms = state.time_ms;
@@ -235,26 +265,58 @@ void SoaringController::update() {
 
 // Update thermal belief
 void SoaringController::update_thermals(const VehicleState &state, float dt) {
-    // Update Variometer
+	
+	auto check_err = [](const char* location) {
+        static uint32_t last_err_count = 0;
+        uint32_t err_count = AP::internalerror().count();
+        if (err_count != last_err_count) {
+            last_err_count = err_count;
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "GLIDE: fault after %s", location);
+        }
+    };
+	
+	// Update Variometer
     _vario.update(_ahrs.get_roll());
     float airmass_rate = _vario.reading;
+	check_err("vario.update");
 
     // Get North/East position relative to home
     Vector2f pos;
     if (!_ahrs.get_relative_position_NE_home(pos)) {
         return; 
     }
+	
+	check_err("get_position");
 
     // Update EKF
     // thermal drift: wind_velocity * dt
-    _ekf.update(airmass_rate, pos.x, pos.y, state.wind.x * dt, state.wind.y * dt);
+    float dist_to_thermal = sqrtf(powf(pos.x - _ekf.X[2], 2) + powf(pos.y - _ekf.X[3], 2));
+    float thermal_radius = _ekf.X[1];
+	
+	if (dist_to_thermal > 0.01f && thermal_radius > 0.01f) {
+               
+        _ekf.update(airmass_rate, pos.x, pos.y, state.wind.x * dt, state.wind.y * dt);
+		check_err("ekf.update");
+    }
+	
+    if (isnan(_ekf.X[0]) || isnan(_ekf.X[1]) || isnan(_ekf.X[2]) || isnan(_ekf.X[3]) ||
+        isinf(_ekf.X[0]) || isinf(_ekf.X[1]) || isinf(_ekf.X[2]) || isinf(_ekf.X[3])) {
+        // EKF has diverged - skip this update
+        return;
+    }
 
-    // 4. Save to Memory (Using direct access to X state vector)
+    // sanity check the radius is physically plausible
+    if (_ekf.X[1] < 0.1f || _ekf.X[1] > 2000.0f) {
+        return;
+    }
+	
     if (_ekf.X[0] > 0.5f) { // X[0] is Strength (W)
-        
+        float north = constrain_float(_ekf.X[2], -50000.0f, 50000.0f);
+		float east  = constrain_float(_ekf.X[3], -50000.0f, 50000.0f); // X[2] is North Pos, X[3] is East Pos
+	
         Location thermal_loc = state.current_loc;
-        // X[2] is North Pos, X[3] is East Pos
-        thermal_loc.offset(_ekf.X[2], _ekf.X[3]);
+        
+        thermal_loc.offset(north, east);
 
         int8_t target_idx = -1;
         float min_dist = FLT_MAX;
@@ -384,6 +446,8 @@ void SoaringController::update_strategic_loop(const VehicleState &state) {
         save_heatmap();
     }
 	
+	//
+	//
 	// locate nearest target for global pull
 	_has_nearest_target = false;
 	
@@ -441,7 +505,9 @@ void SoaringController::update_strategic_loop(const VehicleState &state) {
 // TACTICAL LOOP
 // calculate reward function for each action and select best action
 SoaringController::SoaringAction SoaringController::calculate_optimal_action(const VehicleState &state) {
-    SoaringAction best_action = { 0.0f, 0, -FLT_MAX, false };
+    SoaringAction best_action = {};
+	best_action.score_total = -FLT_MAX;
+	best_action.is_valid = false;
     
     const float k_safe = 50.0f;
     const float k_greed = 5.0f;
@@ -552,6 +618,13 @@ float SoaringController::predict_thermal_lift(const VehicleState &state, const L
     for (uint8_t i = 0; i < MAX_THERMALS; i++) {
         if (!_thermal_memory[i].active) continue;
         
+		if (_thermal_memory[i].radius_r0 < 0.1f || 
+        isnan(_thermal_memory[i].strength_w0) ||
+        isnan(_thermal_memory[i].radius_r0)) {
+        _thermal_memory[i].active = false;
+        continue;
+		}
+		
         // Age out thermals older than 2 minutes using injection time
         if (state.time_ms - _thermal_memory[i].last_update_ms > 120000) {
             _thermal_memory[i].active = false;
@@ -621,39 +694,34 @@ bool SoaringController::get_grid_coords_from_loc(const Location &loc, int16_t &x
 // LOGGING
 void SoaringController::Log_Write_Soaring(const SoaringAction &action) {
 #if HAL_LOGGING_ENABLED
-    struct PACKED log_Soar_Reward {
-        LOG_PACKET_HEADER;
-        uint64_t time_us;
-        float bank_cmd;
-        int8_t throttle_cmd;
-        float total_score;
-        float mission_score;
-        float energy_score;
-        float safety_score;
-        float lambda;
-    };
-
-    struct log_Soar_Reward pkt = {
-        LOG_PACKET_HEADER_INIT((uint8_t)LOG_SOAR_REWARD_MSG), 
-        time_us       : AP_HAL::micros64(),
-        bank_cmd      : action.bank_angle,
-        throttle_cmd  : action.throttle_pct,
-        total_score   : action.score_total,
-        mission_score : action.score_mission,
-        energy_score  : action.score_energy,
-        safety_score  : action.score_safety,
-        lambda        : action.current_lambda
-    };
-	
-    AP::logger().WriteBlock(&pkt, sizeof(pkt));
-#endif	
+    AP::logger().Write(
+        "SOAR",                         // message name (4 chars max)
+        "Time_micros,Bank,Thr,Tot,Mis,Eng,Saf,Lam",  // field names
+        "sdddddd-",                     // units
+        "F-------",                     // multipliers
+        "Qfbfffff",                     // format: Q=uint64, f=float, b=int8
+        AP_HAL::micros64(),
+        action.bank_angle,
+        action.throttle_pct,
+        action.score_total,
+        action.score_mission,
+        action.score_energy,
+        action.score_safety,
+        action.current_lambda
+    );
+#endif
 
 #if HAL_GCS_ENABLED
-    gcs().send_named_float("SOAR_TOT", action.score_total);
-    gcs().send_named_float("SOAR_MIS", action.score_mission);
-    gcs().send_named_float("SOAR_ENG", action.score_energy);
-    gcs().send_named_float("SOAR_SAF", action.score_safety);
-    gcs().send_named_float("SOAR_LAM", action.current_lambda);
+    static uint32_t last_gcs_ms = 0;
+    uint32_t now = AP_HAL::millis();
+    if (now - last_gcs_ms >= 1000) {
+        last_gcs_ms = now;
+        gcs().send_named_float("SOAR_TOT", action.score_total);
+        gcs().send_named_float("SOAR_MIS", action.score_mission);
+        gcs().send_named_float("SOAR_ENG", action.score_energy);
+        gcs().send_named_float("SOAR_SAF", action.score_safety);
+        gcs().send_named_float("SOAR_LAM", action.current_lambda);
+    }
 #endif
 }
 
@@ -689,6 +757,39 @@ void SoaringController::save_heatmap() {
     fclose(f);
 }
 
+void SoaringController::log_state_to_csv(const VehicleState &state, const SoaringAction &action) {
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    static FILE *csv_file = nullptr;
+    static bool header_written = false;
+
+    if (csv_file == nullptr) {
+        csv_file = fopen("libraries/AP_Soaring/flight_data.csv", "w");
+        if (csv_file == nullptr) return;
+    }
+
+    if (!header_written) {
+        fprintf(csv_file, "Time(ms),lat_e7,lng_e7,alt_m,tas_m_s,heading_deg,Lambda,Bank(deg),Thr(%%),TotScore,MisScore,EngScore,SafScore\n");
+        header_written = true;
+    }
+
+    fprintf(csv_file, "%u,%d,%d,%.3f,%.3f,%.3f,%.4f,%.1f,%d,%.4f,%.4f,%.4f,%.4f\n",
+            (unsigned)state.time_ms,
+            (int)state.current_loc.lat,
+            (int)state.current_loc.lng,
+            (double)state.alt_m,
+            (double)state.tas_m_s,
+            (double)degrees(state.heading_true_rad),
+            (double)action.current_lambda,
+            (double)action.bank_angle,
+            (int)action.throttle_pct,
+            (double)action.score_total,
+            (double)action.score_mission,
+            (double)action.score_energy,
+            (double)action.score_safety);
+
+    fflush(csv_file);
+#endif
+}
 //Pass roll command and throttle pct to autopilot
 float SoaringController::get_target_bank_angle_cd() const {
     if (!_last_action.is_valid) {
@@ -704,7 +805,11 @@ int8_t SoaringController::get_target_throttle_pct() const {
 }
 
 // FAILSAFE
-bool SoaringController::is_healthy() const {
+bool SoaringController::is_healthy() {
+	
+	if (_heatmap_data == nullptr) {
+        load_heatmap();
+    }
     if (_heatmap_data == nullptr) return false;
     if (_mission_time_s == 0) return false; 
     if (max_gsd_alt.get() <= 0.0f) return false; 

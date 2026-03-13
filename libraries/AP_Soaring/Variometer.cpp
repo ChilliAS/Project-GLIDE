@@ -31,7 +31,7 @@ void Variometer::update(const float thermal_bank)
     const float minV = sqrtf(_polarParams.K/1.5);
     _aspd_filt_constrained = aspd_filt>minV ? aspd_filt : minV;
 
-    tau = calculate_circling_time_constant(radians(thermal_bank));
+    tau = calculate_circling_time_constant(thermal_bank);
 
     float dt = (float)(AP_HAL::micros64() - _prev_update_time)/1e6;
 
@@ -138,5 +138,11 @@ float Variometer::calculate_circling_time_constant(float thermal_bank) const
     // potential, as the aircraft orbits the thermal.
     // Use the time to circle - variations at the circling frequency then have a gain of 25%
     // and the response to a step input will reach 64% of final value in three orbits.
-    return 2*M_PI*_aspd_filt_constrained/(GRAVITY_MSS*tanf(thermal_bank));
+	
+	float abs_bank = fabsf(thermal_bank);
+    if (abs_bank < radians(5.0f)) {
+        abs_bank = radians(5.0f);
+    }
+	
+    return 2*M_PI*_aspd_filt_constrained/(GRAVITY_MSS*tanf(abs_bank));
 }
