@@ -1,7 +1,7 @@
 #include <AP_HAL/AP_HAL_Boards.h>
 
 #ifndef HAL_MISSIONSOARING_ENABLED
-    #if BOARD_FLASH_SIZE > 1024 && !defined(HAL_MINIMIZE_FEATURES) && defined(HAVE_OS_POSIX_IO)
+    #if !defined(HAL_MINIMIZE_FEATURES) && defined(HAVE_OS_POSIX_IO)
         #define HAL_MISSIONSOARING_ENABLED 1
     #else
         #define HAL_MISSIONSOARING_ENABLED 0
