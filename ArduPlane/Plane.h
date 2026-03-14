@@ -67,6 +67,7 @@
 #include <AP_Mission/AP_Mission.h>     // Mission command library
 
 #include <AP_Soaring/AP_Soaring.h>
+#include <AP_MissionSoaring/AP_MissionSoaring.h>
 #include <AP_BattMonitor/AP_BattMonitor.h> // Battery monitor library
 
 #include <AP_Arming/AP_Arming.h>
@@ -331,7 +332,11 @@ private:
 #if HAL_SOARING_ENABLED
     ModeThermal mode_thermal;
 #endif
-
+#if HAL_MISSIONSOARING_ENABLED
+    MSoaringController mission_soaring{TECS_controller, aparm};
+    ModeFBWS mode_fbws;
+    ModeSoar mode_soar;    
+#endif
 #if AP_QUICKTUNE_ENABLED
     AP_Quicktune quicktune;
 #endif

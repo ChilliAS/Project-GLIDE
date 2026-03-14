@@ -70,6 +70,10 @@ public:
 #if MODE_AUTOLAND_ENABLED
         AUTOLAND      = 26,
 #endif
+#if HAL_MISSIONSOARING_ENABLED
+        FBWS      = 27,
+        SOAR      = 28,
+#endif
 
     // Mode number 30 reserved for "offboard" for external/lua control.
     };
@@ -1072,4 +1076,25 @@ protected:
     bool _enter() override;
 };
 
+#endif
+
+#if HAL_MISSIONSOARING_ENABLED
+
+class ModeFBWS : public ModeFBWA 
+{
+public:
+    Number mode_number() const override { return Number::FBWS; }
+    bool _enter() override; 
+    void update() override;
+    void run() override;
+};
+
+class ModeSoar : public Mode 
+{
+public:
+    Number mode_number() const override { return Number::SOAR; }
+    bool _enter() override; 
+    void update() override;
+    void run() override; 
+};
 #endif

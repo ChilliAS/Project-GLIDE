@@ -93,6 +93,14 @@ Mode *Plane::mode_from_mode_num(const enum Mode::Number num)
         ret = &mode_thermal;
 #endif
         break;
+#if HAL_MISSIONSOARING_ENABLED
+    case Mode::Number::FBWS:
+        ret = &mode_fbws;
+        break;
+    case Mode::Number::SOAR:
+        ret = &mode_soar;
+        break;
+#endif
 #if HAL_QUADPLANE_ENABLED
     case Mode::Number::LOITER_ALT_QLAND:
         ret = &mode_loiter_qland;
