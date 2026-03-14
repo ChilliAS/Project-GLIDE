@@ -119,6 +119,10 @@ const AP_Scheduler::Task Plane::scheduler_tasks[] = {
 #if HAL_SOARING_ENABLED
     SCHED_TASK(update_soaring,         50,    400, 126),
 #endif
+#if HAL_MISSIONSOARING_ENABLED
+    SCHED_TASK_CLASS(MSoaringController, &plane.mission_soaring, update_tactical_loop, 20, 200, 127),
+    SCHED_TASK_CLASS(MSoaringController, &plane.mission_soaring, update_strategic_loop, 1, 500, 128),
+#endif
     SCHED_TASK(parachute_check,        10,    200, 129),
 #if AP_TERRAIN_AVAILABLE
     SCHED_TASK_CLASS(AP_Terrain, &plane.terrain, update, 10, 200, 132),
