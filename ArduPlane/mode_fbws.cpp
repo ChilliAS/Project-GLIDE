@@ -7,14 +7,15 @@
   Passively runs soaring controller in "Shadow Mode".
 
 */
+#if HAL_MISSIONSOARING_ENABLED
 bool ModeFBWS::_enter()
 {
-#if HAL_MISSIONSOARING_ENABLED
+
     if (!plane.mission_soaring.is_active() || !plane.mission_soaring.is_healthy()) {
         GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "SOAR: Controller unhealthy");
         return false; // Reject entering the mode
     }
-#endif
+
     return true;
 }
 
@@ -26,22 +27,20 @@ void ModeFBWS::update()
         
         // 0 = RTL, 1 = FBWA
         uint8_t fs_action = plane.mission_soaring.get_failsafe_action();
-        Mode::Number safe_mode = (fs_action == 1) ? Mode::Number::FLY_BY_WIRE_A : Mode::Number::RTL;
-        
-        // Execute mode change and abort soaring
-        plane.set_mode(safe_mode, ModeReason::FAILSAFE);
+        Mode::Number safe_mode = (fs_action == 0) ? Mode::Number::RTL : Mode::Number::FLY_BY_WIRE_A;
+        plane.set_mode_by_number(safe_mode, ModeReason::FAILSAFE);
         return; 
     }
     ModeFBWA::update();
 
-#if HAL_MISSIONSOARING_ENABLED
+
 
     if (plane.mission_soaring.is_active()) {
-        float shadow_bank_cd = plane.mission_soaring.get_target_bank_angle_cd();
-        int8_t shadow_throttle_pct = plane.mission_soaring.get_target_throttle_pct();
+        //float shadow_bank_cd = plane.mission_soaring.get_target_bank_angle_cd();
+        //int8_t shadow_throttle_pct = plane.mission_soaring.get_target_throttle_pct();
         // TODO LOGGING
     }
-#endif
+
 }
 
 void ModeFBWS::run()
@@ -49,3 +48,4 @@ void ModeFBWS::run()
     ModeFBWA::run();
 }
 
+#endif
