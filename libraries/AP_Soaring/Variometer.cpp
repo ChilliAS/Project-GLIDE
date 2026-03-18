@@ -138,5 +138,7 @@ float Variometer::calculate_circling_time_constant(float thermal_bank) const
     // potential, as the aircraft orbits the thermal.
     // Use the time to circle - variations at the circling frequency then have a gain of 25%
     // and the response to a step input will reach 64% of final value in three orbits.
-    return 2*M_PI*_aspd_filt_constrained/(GRAVITY_MSS*tanf(thermal_bank));
+    
+    float bank_rad = MAX(fabsf(thermal_bank), radians(1.0f));
+    return 2*M_PI*_aspd_filt_constrained/(GRAVITY_MSS*tanf(bank_rad));
 }
