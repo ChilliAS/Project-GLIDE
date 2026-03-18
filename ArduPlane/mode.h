@@ -4,6 +4,7 @@
 #include <AP_Common/Location.h>
 #include <stdint.h>
 #include <AP_Soaring/AP_Soaring.h>
+#include <AP_MissionSoaring/AP_MissionSoaring_config.h>
 #include <AP_ADSB/AP_ADSB.h>
 #include <AP_Vehicle/ModeReason.h>
 #include "quadplane.h"
@@ -162,6 +163,11 @@ public:
 
     // true if voltage correction should be applied to throttle
     virtual bool use_battery_compensation() const;
+    
+    // true if dynamic throttle cage should be applied [Project GLIDE]
+    virtual bool use_throttle_cage() const { return false; }
+    virtual int8_t throttle_cage_min() const { return 0; }
+    virtual int8_t throttle_cage_max() const { return 100; }
  
 #if MODE_AUTOLAND_ENABLED   
     // true if mode allows landing direction to be set on first takeoff after arm in this mode 
@@ -1084,6 +1090,8 @@ class ModeFBWS : public ModeFBWA
 {
 public:
     Number mode_number() const override { return Number::FBWS; }
+    const char *name() const override { return "FBWSoar"; }
+    const char *name4() const override { return "FBWS"; }
     bool _enter() override; 
     void update() override;
     void run() override;
@@ -1093,8 +1101,19 @@ class ModeSoar : public Mode
 {
 public:
     Number mode_number() const override { return Number::SOAR; }
+    const char *name() const override { return "Soar"; }
+    const char *name4() const override { return "SOAR"; }
     bool _enter() override; 
     void update() override;
     void run() override; 
+    uint32_t _last_gcs_log_ms;
+    
+    // Throttle range caging
+    bool use_throttle_cage() const override { return true; }
+    int8_t throttle_cage_min() const override;
+    int8_t throttle_cage_max() const override;
+    
+    bool does_auto_navigation() const override { return true; }
+    bool does_auto_throttle() const override { return true; }
 };
 #endif
