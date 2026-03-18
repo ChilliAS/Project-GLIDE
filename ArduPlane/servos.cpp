@@ -598,6 +598,14 @@ float Plane::apply_throttle_limits(float throttle_in)
 
     // Do a sanity check on them. Constrain down if necessary.
     min_throttle = MIN(min_throttle, max_throttle);
+    
+    // Narrow the throttle range if the cage is enabled [Project GLIDE]
+    if (control_mode->use_throttle_cage() && !TECS_controller.is_underspeed()) {
+        min_throttle = constrain_int16(control_mode->throttle_cage_min(),
+                                       min_throttle, max_throttle);
+        max_throttle = constrain_int16(control_mode->throttle_cage_max(),
+                                       min_throttle, max_throttle);
+    }
 
     // Let TECS know about the updated throttle limits.
     // These will be taken into account on the next iteration.
