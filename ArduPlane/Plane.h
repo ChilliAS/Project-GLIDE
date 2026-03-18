@@ -174,6 +174,8 @@ public:
     friend class ModeQAutotune;
     friend class ModeTakeoff;
     friend class ModeThermal;
+    friend class ModeSoar;
+    friend class ModeFBWS;
     friend class ModeLoiterAltQLand;
 #if MODE_AUTOLAND_ENABLED
     friend class ModeAutoLand;
@@ -331,11 +333,6 @@ private:
 #endif
 #if HAL_SOARING_ENABLED
     ModeThermal mode_thermal;
-#endif
-#if HAL_MISSIONSOARING_ENABLED
-    MSoaringController mission_soaring{TECS_controller, aparm};
-    ModeFBWS mode_fbws;
-    ModeSoar mode_soar;    
 #endif
 #if AP_QUICKTUNE_ENABLED
     AP_Quicktune quicktune;
@@ -1334,7 +1331,11 @@ public:
     bool tkoff_option_is_set(AP_FixedWing::TakeoffOption option) const {
         return (aparm.takeoff_options & int32_t(option)) != 0;
     }
-   
+#if HAL_MISSIONSOARING_ENABLED
+    MSoaringController mission_soaring{ahrs, aparm};
+    ModeFBWS mode_fbws;
+    ModeSoar mode_soar;    
+#endif
 
 };
 
