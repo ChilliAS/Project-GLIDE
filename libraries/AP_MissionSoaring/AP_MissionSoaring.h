@@ -8,19 +8,20 @@
 #include "AP_MissionSoaring_config.h"
 #if HAL_MISSIONSOARING_ENABLED
 
-#include <AP_TECS/AP_TECS.h>
+//#include <AP_TECS/AP_TECS.h>
 #include <AP_AHRS/AP_AHRS.h>
 #include <AP_Param/AP_Param.h>
 #include <AP_Math/AP_Math.h>
 #include <AP_Vehicle/AP_FixedWing.h>
 
-#include "ExtendedKalmanFilter.h"
-#include "Variometer.h"
+#include <AP_Soaring/ExtendedKalmanFilter.h>
+#include <AP_Soaring/Variometer.h>
 #include <AP_Logger/AP_Logger.h>
 
 class MSoaringController {
 public:
-    MSoaringController(AP_TECS &tecs, const AP_FixedWing &parms); //takes TECS instead of AHRS to maintain compatibility with standard ArduPilot where poss
+    MSoaringController(AP_AHRS &ahrs, const AP_FixedWing &parms); 
+    void init();
 
 	// DATA STRUCTURES
 	
@@ -64,6 +65,8 @@ public:
 		bool is_armed;
         float dist_to_home_m;
         float cruise_spd_m_s;
+        float airmass_rate_m_s;
+        Vector2f pos_ne_m;
     };
 
     // Thermal Memory
@@ -108,7 +111,10 @@ public:
 
     void update_tactical_loop();					// 20 Hz
 	void update_strategic_loop();                   // 1 Hz
-	SoaringAction calculate_optimal_action(const VehicleState &state);
+    void update_tactical_loop(const VehicleState &state); // overloaded for unit testing
+    void update_strategic_loop(const VehicleState &state); // overloaded for unit testing
+	SoaringAction get_last_action() const { return last_action; }
+    SoaringAction calculate_optimal_action(const VehicleState &state);
 	
 	// Helper Functions
 	
@@ -134,7 +140,6 @@ public:
 
 private:
     // AP Objects
-	AP_TECS &_tecs;
     AP_AHRS &_ahrs;
 	const AP_FixedWing &_aparm;
 	Variometer::PolarParams _polar_params;
@@ -201,7 +206,7 @@ private:
     float grid_res_m = 10.0f;
     Location heatmap_origin;
 
-    static const PerformanceStep perf_table[3];
+    static const PerformanceStep perf_table[];
 
     // FUNCTIONS
     
@@ -221,4 +226,4 @@ private:
 	void save_mission();
 };
 
-#endif // HAL_SOARING_ENABLED
+#endif // HAL_MISSIONSOARING_ENABLED
