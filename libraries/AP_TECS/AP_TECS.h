@@ -112,6 +112,9 @@ public:
     float get_height_rate_demand(void) const {
         return _hgt_rate_dem;
     }
+    
+    // return underspeed flag [Project GLIDE]
+    bool is_underspeed() const { return _flags.underspeed; }
 
     // set path_proportion
     void set_path_proportion(float path_proportion) {
