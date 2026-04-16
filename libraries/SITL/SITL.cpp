@@ -259,7 +259,7 @@ const AP_Param::GroupInfo SIM::var_info[] = {
     AP_SUBGROUPEXTENSION("",      61, SIM,  var_gps),
 #endif
     AP_SUBGROUPEXTENSION("",      62, SIM,  var_info3),
-    AP_SUBGROUPEXTENSION("",      63, SIM,  var_info2),
+    AP_SUBGROUPEXTENSION("",      63, SIM,  var_info2),    
     AP_GROUPEND
 };
 
@@ -1562,6 +1562,10 @@ const AP_Param::GroupInfo SIM::ModelParm::var_info[] = {
     AP_SUBGROUPPTR(ais_ptr, "AIS_", 7, SIM::ModelParm, AIS),
 #endif  // AP_SIM_AIS_ENABLED
 
+     // @Group: UPD_
+    // @Path: SIM_Updraft.cpp
+    AP_SUBGROUPINFO(updrafts, "UPD_", 8, SIM::ModelParm, UpdraftField), // PROJECT GLIDE 
+    
     AP_GROUPEND
 };
 

@@ -34,6 +34,7 @@
 #include "SIM_ADSB_Sagetech_MXS.h"
 #include "SIM_Volz.h"
 #include "SIM_AIS.h"
+#include "SIM_Updraft.h"
 
 namespace SITL {
 
@@ -391,6 +392,9 @@ public:
 #if AP_SIM_AIS_ENABLED
         class AIS *ais_ptr;
 #endif  // AP_SIM_AIS_ENABLED
+
+    UpdraftField updrafts; // Project GLIDE
+        
     };
     ModelParm models;
     
@@ -566,6 +570,8 @@ public:
     DroneCANDevice dronecan_sim;
 #endif
 
+
+    
     // ESC telemetry
     AP_Int8 esc_telem;
     // RPM when motors are armed

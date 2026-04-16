@@ -29,6 +29,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include "SITL.h" // Project GLIDE
+
 #include <AP_HAL/AP_HAL.h>
 
 extern const AP_HAL::HAL& hal;
@@ -361,6 +363,25 @@ void JSBSim::send_servos(const struct sitl_input &input)
         elevator = (ch2-ch1)/2.0f;
         rudder   = (ch2+ch1)/2.0f;
     }
+    
+    // PROEJCT GLIDE UPDRAFT FIELD INJECTION
+    auto *ap_sitl = AP::sitl();
+    
+     float wind_dir_rad = radians(input.wind.direction);
+    float wind_n = cosf(wind_dir_rad) * input.wind.speed;
+    float wind_e = sinf(wind_dir_rad) * input.wind.speed; 
+
+    float custom_wz = 0.0f;
+
+     if (ap_sitl != nullptr && time_now_us > 0) {
+        ap_sitl->models.updrafts.update(time_now_us);
+        
+        if (ap_sitl->models.updrafts.enable.get() == 1) {
+            custom_wz = ap_sitl->models.updrafts.get_total_lift_at(location, time_now_us, wind_n, wind_e);
+        }
+    } 
+    float wind_down_fps = -custom_wz / FEET_TO_METERS;
+    
     float wind_speed_fps = input.wind.speed / FEET_TO_METERS;
     asprintf(&buf,
              "set fcs/aileron-cmd-norm %f\n"
@@ -369,12 +390,14 @@ void JSBSim::send_servos(const struct sitl_input &input)
              "set fcs/throttle-cmd-norm %f\n"
              "set atmosphere/psiw-rad %f\n"
              "set atmosphere/wind-mag-fps %f\n"
+             "set atmosphere/wind-down-fps %f\n" // Project GLIDE
              "set atmosphere/turbulence/milspec/windspeed_at_20ft_AGL-fps %f\n"
              "set atmosphere/turbulence/milspec/severity %f\n"
              "iterate 1\n",
              aileron, elevator, rudder, throttle,
              radians(input.wind.direction),
              wind_speed_fps,
+             wind_down_fps, // Project GLIDE
              wind_speed_fps/3,
              input.wind.turbulence);
     ssize_t buflen = strlen(buf);
