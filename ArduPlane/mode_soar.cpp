@@ -15,6 +15,9 @@ bool ModeSoar::_enter()
         return false; // Reject entering the mode
     }
     
+    plane.mission_soaring.set_logging_enabled(true);
+    plane.mission_soaring.updraft_estimator.set_logging_enabled(true);
+
     return true;
 }
 
@@ -46,17 +49,18 @@ void ModeSoar::update()
         //plane.TECS_controller.set_throttle_max(target_throttle_pct * 0.01f);
         
         uint32_t now_ms = AP_HAL::millis();
-        if (now_ms - _last_gcs_log_ms >= 1000) {
+        if (now_ms - _last_gcs_log_ms >= 5000) {
             _last_gcs_log_ms = now_ms;
-            GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,
+            GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "Free RAM: %u bytes", (unsigned)hal.util->available_memory());
+/*             GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,
             "SOAR thr=%d%% spd_dem=%.1f ptch=%.1f",
             (int)target_throttle_pct,
             (double)(plane.target_airspeed_cm / 100.0f),   // what YOU set
             (double)plane.TECS_controller.get_pitch_demand() // what TECS wants
-            );
-        }
+            ); */
+        } 
         
-        // TODO LOGGING
+        plane.mission_soaring.log_estimators(AP_HAL::micros());
     } else {
         GCS_SEND_TEXT(MAV_SEVERITY_EMERGENCY, "SOARING DISABLED");
         uint8_t fs_action = plane.mission_soaring.get_failsafe_action();
@@ -71,6 +75,12 @@ void ModeSoar::run()
     plane.calc_nav_pitch();
     Mode::run();
 
+}
+
+void ModeSoar::_exit()
+{
+    plane.mission_soaring.set_logging_enabled(false);
+    plane.mission_soaring.updraft_estimator.set_logging_enabled(false);
 }
 
 int8_t ModeSoar::throttle_cage_min() const

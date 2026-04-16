@@ -1092,7 +1092,8 @@ public:
     Number mode_number() const override { return Number::FBWS; }
     const char *name() const override { return "FBWSoar"; }
     const char *name4() const override { return "FBWS"; }
-    bool _enter() override; 
+    bool _enter() override;
+    void _exit() override;    
     void update() override;
     void run() override;
 };
@@ -1103,7 +1104,8 @@ public:
     Number mode_number() const override { return Number::SOAR; }
     const char *name() const override { return "Soar"; }
     const char *name4() const override { return "SOAR"; }
-    bool _enter() override; 
+    bool _enter() override;
+    void _exit() override;
     void update() override;
     void run() override; 
     uint32_t _last_gcs_log_ms;

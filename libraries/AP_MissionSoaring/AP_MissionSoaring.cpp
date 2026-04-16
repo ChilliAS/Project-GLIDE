@@ -92,17 +92,120 @@ const AP_Param::GroupInfo MSoaringController::var_info[] = {
     // @DisplayName: Cell Depletion Factor
     // @Description: Multiplier applied to cell score per second when overflown (0.0 to 1.0).
     AP_GROUPINFO("DEP_FACT", 13, MSoaringController, msoar_dep_fact, 0.5f),
+    
+    // @Param: P0_AMP
+    // @DisplayName: Point 0 Amps (0% Thr)
+    // @Description: Current draw at 0% throttle.
+    AP_GROUPINFO("P0_AMP", 14, MSoaringController, msoar_p0_amp, 0.2f),
+
+    // @Param: P0_VZ
+    // @DisplayName: Point 0 Climb (0% Thr)
+    // @Description: Still air climb rate at 0% throttle (Negative for sink).
+    AP_GROUPINFO("P0_VZ", 15, MSoaringController, msoar_p0_vz, -0.8f),
+
+    // @Param: P1_THR
+    // @DisplayName: Point 1 Throttle %
+    // @Description: Throttle percentage for Point 1.
+    AP_GROUPINFO("P1_THR", 16, MSoaringController, msoar_p1_thr, 30),
+    
+    // @Param: P1_AMP
+    // @DisplayName: Point 1 Amps
+    // @Description: Current draw at P1 throttle.
+    AP_GROUPINFO("P1_AMP", 17, MSoaringController, msoar_p1_amp, 0.5f),
+    AP_GROUPINFO("P1_VZ",  18, MSoaringController, msoar_p1_vz,  0.3f),
+
+    // @Param: P2_THR
+    // @DisplayName: Point 2 Throttle %
+    // @Description: Throttle percentage for Point 2.
+    AP_GROUPINFO("P2_THR", 19, MSoaringController, msoar_p2_thr, 50),
+    
+    // @Param: P2_AMP
+    // @DisplayName: Point 2 Amps
+    // @Description: Current draw at P2 throttle.
+    AP_GROUPINFO("P2_AMP", 20, MSoaringController, msoar_p2_amp, 4.3f),
+    AP_GROUPINFO("P2_VZ",  21, MSoaringController, msoar_p2_vz,  1.8f),
+
+    // @Param: P3_THR
+    // @DisplayName: Point 3 Throttle %
+    // @Description: Throttle percentage for Point 3.
+    AP_GROUPINFO("P3_THR", 22, MSoaringController, msoar_p3_thr, 60),
+    
+    // @Param: P3_AMP
+    // @DisplayName: Point 3 Amps
+    // @Description: Current draw at P3 throttle.
+    AP_GROUPINFO("P3_AMP", 23, MSoaringController, msoar_p3_amp, 12.0f),
+    AP_GROUPINFO("P3_VZ",  24, MSoaringController, msoar_p3_vz,  3.5f),
+
+    // @Param: P4_THR
+    // @DisplayName: Point 4 Throttle %
+    // @Description: Throttle percentage for Point 4.
+    AP_GROUPINFO("P4_THR", 25, MSoaringController, msoar_p4_thr, 85),
+    
+    // @Param: P4_AMP
+    // @DisplayName: Point 4 Amps
+    // @Description: Current draw at P4 throttle.
+    AP_GROUPINFO("P4_AMP", 26, MSoaringController, msoar_p4_amp, 21.5f),
+    AP_GROUPINFO("P4_VZ",  27, MSoaringController, msoar_p4_vz,  5.5f),
+    
+    // @Param: M_GLB_UPD
+    // @DisplayName: Global Updraft Pull Multiplier
+    // @Description: Scales the attraction to the best global updraft. Set to 0 to disable.
+    AP_GROUPINFO("M_GLB_UPD", 28, MSoaringController, msoar_m_glb_upd, 1.0f),
+
+    // @Param: M_GLB_MIS
+    // @DisplayName: Global Mission Pull Multiplier
+    // @Description: Scales the attraction to distant mission targets. Set to 0 to disable.
+    AP_GROUPINFO("M_GLB_MIS", 29, MSoaringController, msoar_m_glb_mis, 1.0f),
+
+    // @Param: M_MIS_TOT
+    // @DisplayName: Total Mission Score Multiplier
+    // @Description: Scales the final mission score. Set to 0 to disable mission behavior.
+    AP_GROUPINFO("M_MIS_TOT", 30, MSoaringController, msoar_m_mis_tot, 1.0f),
+
+    // @Param: M_ENG_TOT
+    // @DisplayName: Total Energy Score Multiplier
+    // @Description: Scales the final energy score. Set to 0 to disable energy optimization.
+    AP_GROUPINFO("M_ENG_TOT", 31, MSoaringController, msoar_m_eng_tot, 1.0f),
+
+    // @Param: PEN_MOT
+    // @DisplayName: Motor Start Penalty
+    // @Description: Score penalty applied for transitioning from 0% to >0% throttle.
+    AP_GROUPINFO("PEN_MOT", 32, MSoaringController, msoar_pen_mot, 0.5f),
+
+    // @Param: K_SAFE
+    // @DisplayName: Safety Penalty Multiplier
+    // @Description: Scales the penalty for breaching altitude limits.
+    AP_GROUPINFO("K_SAFE", 33, MSoaringController, msoar_k_safe, 50.0f),
+
+    // @Param: K_GREED
+    // @DisplayName: Greed / Amp Cost Multiplier
+    // @Description: Cost in equivalent m/s climb rate per Amp drawn.
+    AP_GROUPINFO("K_GREED", 34, MSoaringController, msoar_k_greed, 0.5f),
+
+    // @Param: ALT_BUF
+    // @DisplayName: Altitude Floor Buffer
+    // @Description: Buffer above minimum altitude where safety penalty begins applying.
+    // @Units: m
+    AP_GROUPINFO("ALT_BUF", 35, MSoaringController, msoar_alt_buf, 5.0f),
+
+    // @Param: K_THR_HYST
+    // @DisplayName: Throttle Hysteresis Penalty
+    // @Description: Penalty applied per percent of throttle change from previous action.
+    AP_GROUPINFO("K_THR_HYST", 36, MSoaringController, msoar_k_thr_hyst, 0.1f),
+
+    // @Param: MAX_BANK
+    // @DisplayName: Maximum Bank Angle
+    // @Description: Maximum bank angle considered by the soaring tactical loop.
+    // @Units: deg
+    AP_GROUPINFO("MAX_BANK", 37, MSoaringController, msoar_max_bank, 30),
+
+    // @Group: UPD_
+    // @Path: UpdraftEstimator.cpp
+    AP_SUBGROUPINFO(updraft_estimator, "U_", 38, MSoaringController, UpdraftEstimator),
 
     AP_GROUPEND
 };
 
-const MSoaringController::PerformanceStep MSoaringController::perf_table[] = {
-    { 0,   0.2f,  -0.8f },
-    { 30,  0.5f,   0.3f },
-    { 50,  4.3f,   1.8f },
-    { 60, 12.0f,   3.5f },
-    { 85, 21.5f,   5.5f }
-};
 
 // Initialise AHRS, Airframe, and the Estimators
 MSoaringController::MSoaringController(AP_AHRS &ahrs, const AP_FixedWing &parms) : 
@@ -112,19 +215,22 @@ MSoaringController::MSoaringController(AP_AHRS &ahrs, const AP_FixedWing &parms)
     last_action{} 
 {
     AP_Param::setup_object_defaults(this, var_info);
-       
-    // Initialise thermal memory array
-    for (uint8_t i = 0; i < MAX_THERMALS; i++) {
-        thermal_memory[i].active = false;
-    }
-            
+                   
 }
 
 void MSoaringController::init() {
+    hal.scheduler->delay(3000); 
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "GLIDE: Initialsing!");
     if (mission_heatmap == nullptr) {
-        mission_heatmap = (uint8_t*)hal.util->malloc_type(MAX_HEATMAP_BYTES, AP_HAL::Util::MEM_DMA_SAFE);
+        mission_heatmap = (uint8_t*)hal.util->malloc_type(MAX_HEATMAP_BYTES, AP_HAL::Util::MEM_FAST);
+        if (mission_heatmap == nullptr) {
+            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "GLIDE: FATAL - Not enough memory!");
+        } else {
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "GLIDE: Heatmap allocated successfully.");
+        }
     }
     init_io_thread();
+    updraft_estimator.init();
 }
 
 // PRIMARY LOOPS (parameterless - run by AP scheduler, passing state to overloaded functions)
@@ -186,7 +292,7 @@ void MSoaringController::update_strategic_loop(const VehicleState &state) {
             float max_local_x = (swath_height_m * 0.5f) - cell_margin; 
             float max_local_y = (swath_width_m * 0.5f) - cell_margin;
             
-            if (max_local_x > 0 && max_local_y > 0) { // sanity check swath larger than cell - eg. not on the ground
+            if (max_local_x > 0 && max_local_y > 0) { // sanity check swath larger than cell - not on the ground
                 
                 int16_t plane_cx, plane_cy;
                 if (get_grid_coords_from_loc(state.current_loc, plane_cx, plane_cy)) {
@@ -301,6 +407,11 @@ void MSoaringController::update_strategic_loop(const VehicleState &state) {
         mission_sem.give();
     }
     
+    // Updraft estimator update
+    
+    Vector2f wind_xy(state.wind.x, state.wind.y);
+    updraft_estimator.trigger_update(state.current_loc, state.alt_m, state.ground_vel_m_s, wind_xy);
+    has_global_thermal = updraft_estimator.get_best_global_updraft(state.current_loc, global_thermal_loc, global_thermal_strength, state.time_us);
 }
 
 void MSoaringController::update_tactical_loop(const VehicleState &state) {
@@ -310,26 +421,30 @@ void MSoaringController::update_tactical_loop(const VehicleState &state) {
         return; 
     }
     float dt = (state.time_us - last_tactical_update_us) * 1.0e-6f;
-        
+     
     update_thermals(state, dt);
     SoaringAction action = calculate_optimal_action(state);
-    log_state_to_csv(state, action);
+    log_state_to_csv(state, action);   
 
     if (action.is_valid) {
-            //Log_Write_Soaring(action);
+        if (_log_enable) {
+            Log_Write_Soaring(action);
+            log_estimators(state.time_us);
+        }
         last_action = action; 
     }
     
-        last_tactical_update_us = state.time_us;
+    last_tactical_update_us = state.time_us;
     
 
 }
 
 
-// POMDP Functions (inc input fetch)
+// MDP Functions (inc input fetch)
 // Get A/C state information - decouple hardware to allow unit testing of soaring controller
 MSoaringController::VehicleState MSoaringController::get_current_state() {
     VehicleState state{};
+    update_perf_table();   
     
     _ahrs.get_relative_position_D_home(state.alt_m);
     state.alt_m *= -1.0f;
@@ -347,7 +462,7 @@ MSoaringController::VehicleState MSoaringController::get_current_state() {
     }
     
     float consumed_mah = 0.0f;
-    if (!AP::battery().consumed_mah(consumed_mah, 0)) { // batt instance 0
+    if (!AP::battery().consumed_mah(consumed_mah, 0)) {
     consumed_mah = 0.0f; // TODO - this should be set to max capacity and as a failsafe?
     } 
     state.battery_remaining_mah = MAX(0.0f, AP::battery().pack_capacity_mah(0) - consumed_mah);
@@ -362,11 +477,75 @@ MSoaringController::VehicleState MSoaringController::get_current_state() {
     state.dist_to_home_m = 0.0f;
     }
     
-    state.airmass_rate_m_s = _vario.reading;
+    float throttle_pct = 0.0f;
+    if (SRV_Channels::function_assigned(SRV_Channel::k_throttle)) {
+        throttle_pct = MAX(0.0f, SRV_Channels::get_output_scaled(SRV_Channel::k_throttle));
+    }
+
+    // removed for redevelopment, not wokring well - TODO: Variometer that works while under power
+    //float expected_motor_climb = 0.0f;
+    
+    /* if (throttle_pct > 0.0f) {
+        uint8_t num_steps = ARRAY_SIZE(perf_table);
+        float expected_vz = perf_table[num_steps - 1].vz_still_air; 
+        
+        // Interpolate expected climb based on the performance table
+        for (uint8_t i = 1; i < num_steps; i++) {
+            if (throttle_pct <= perf_table[i].throttle_pct) {
+                float t0 = perf_table[i-1].throttle_pct;
+                float t1 = perf_table[i].throttle_pct;
+                float v0 = perf_table[i-1].vz_still_air;
+                float v1 = perf_table[i].vz_still_air;
+                
+                float fraction = 0.0f;
+                if ((t1 - t0) > 0.0f) { // <--- Safe math check
+                    fraction = (throttle_pct - t0) / (t1 - t0);
+                }
+                expected_vz = v0 + fraction * (v1 - v0);
+                break;
+            }
+        }
+        
+        // Extrapolate if throttle is higher than the max table value (e.g., > 85)
+        if (throttle_pct > perf_table[num_steps - 1].throttle_pct) {
+            float t0 = perf_table[num_steps-2].throttle_pct;
+            float t1 = perf_table[num_steps-1].throttle_pct;
+            float v0 = perf_table[num_steps-2].vz_still_air;
+            float v1 = perf_table[num_steps-1].vz_still_air;
+            
+            float fraction = 0.0f;
+            if ((t1 - t0) > 0.0f) { 
+                fraction = (throttle_pct - t0) / (t1 - t0);
+            }
+            expected_vz = v0 + fraction * (v1 - v0);
+        }
+
+        // the motor's specific contribution to the reading is the powered climb rate - unpowered sink rate
+        expected_motor_climb = expected_vz - perf_table[0].vz_still_air;
+    }
+
+    // Set airmass rate: Vario reading minus the expected motor contribution
+    state.airmass_rate_m_s = _vario.get_displayed_value() - expected_motor_climb; */
+    
+    if (throttle_pct > 0.0f) {
+        state.airmass_rate_m_s = 0.0f;
+    } else {
+        state.airmass_rate_m_s = _vario.get_displayed_value();
+    }
+    
+    #if HAL_GCS_ENABLED
+    static uint32_t last_airmass_msg_ms = 0;
+    uint32_t now_ms = AP_HAL::millis();
+    if (now_ms - last_airmass_msg_ms >= 1000) {
+        last_airmass_msg_ms = now_ms;
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "GLIDE: Vario %.2f, Air %.2f m/s", (double)_vario.get_displayed_value(), (double)state.airmass_rate_m_s);
+    }
+    #endif
 
     if (!_ahrs.get_relative_position_NE_home(state.pos_ne_m)) {
         state.pos_ne_m.zero(); // Fallback AHRS not ready
     }
+    state.ground_vel_m_s = _ahrs.groundspeed_vector();
     
     return state;
 }
@@ -374,62 +553,8 @@ MSoaringController::VehicleState MSoaringController::get_current_state() {
 // Update thermal belief
 void MSoaringController::update_thermals(const VehicleState &state, float dt) {
     
-    float airmass_rate = state.airmass_rate_m_s;
-    Vector2f pos = state.pos_ne_m;
-
-    // Update EKF
-    // thermal drift: wind_velocity * dt
-    float dist_to_thermal = (pos - Vector2f(_ekf.X[2], _ekf.X[3])).length();
-    float thermal_radius = _ekf.X[1];
+    updraft_estimator.push_observation(state.current_loc, state.alt_m, state.airmass_rate_m_s, state.time_us);
     
-    if (dist_to_thermal > 0.01f && thermal_radius > 0.01f) {
-               
-        _ekf.update(airmass_rate, pos.x, pos.y, state.wind.x * dt, state.wind.y * dt);
-    }
-    
-    if (isnan(_ekf.X[0]) || isnan(_ekf.X[1]) || isnan(_ekf.X[2]) || isnan(_ekf.X[3]) ||
-        isinf(_ekf.X[0]) || isinf(_ekf.X[1]) || isinf(_ekf.X[2]) || isinf(_ekf.X[3])) {
-        // EKF has diverged - skip this update
-        return;
-    }
-
-    // sanity check the radius is physically plausible
-    if (_ekf.X[1] < 0.1f || _ekf.X[1] > 2000.0f) {
-        return;
-    }
-    
-    if (_ekf.X[0] > 0.5f) { // X[0] is Strength (W)
-        float north = constrain_float(_ekf.X[2], -50000.0f, 50000.0f);
-        float east  = constrain_float(_ekf.X[3], -50000.0f, 50000.0f); // X[2] is North Pos, X[3] is East Pos
-    
-        Location thermal_loc = state.current_loc;
-        
-        thermal_loc.offset(north, east);
-
-        int8_t target_idx = -1;
-        float min_dist = FLT_MAX;
-        
-        for (uint8_t i = 0; i < MAX_THERMALS; i++) {
-            if (!thermal_memory[i].active) {
-                if (target_idx == -1) target_idx = i;
-                continue;
-            }
-            
-            float dist = thermal_loc.get_distance(thermal_memory[i].center_loc);
-            if (dist < 50.0f && dist < min_dist) {
-                min_dist = dist;
-                target_idx = i;
-            }
-        }
-
-        if (target_idx != -1) {
-            thermal_memory[target_idx].center_loc = thermal_loc;
-            thermal_memory[target_idx].strength_w0 = _ekf.X[0];
-            thermal_memory[target_idx].radius_r0 = _ekf.X[1]; // X[1] is Radius
-            thermal_memory[target_idx].last_update_ms = state.time_us;
-            thermal_memory[target_idx].active = true;
-        }
-    }
 }
 
 // determine reward functions and select optimum action
@@ -438,14 +563,15 @@ MSoaringController::SoaringAction MSoaringController::calculate_optimal_action(c
     best_action.score_total = -FLT_MAX;
     best_action.is_valid = false;
     
-    const float k_safe = 50.0f;
-    const float k_greed = 0.5f; // cost m/s climb per amp
+    const float k_safe = msoar_k_safe.get();
+    const float k_greed = msoar_k_greed.get(); 
     const float epsilon = 0.05f;
-    const float buffer = 5.0f;
-    const float k_thr_hyst = 0.1f; // cost m/s per % change in throttle
+    const float buffer = msoar_alt_buf.get();
+    const float k_thr_hyst = msoar_k_thr_hyst.get(); 
+    const int8_t max_bank = msoar_max_bank.get();
 
 
-    for (int bank = -30; bank <= 30; bank += 5) {
+    for (int bank = -max_bank; bank <= max_bank; bank += 5) {
         
         Location pred_loc_2d = predict_position_future(state, (float)bank, 5.0f);
         
@@ -456,8 +582,16 @@ MSoaringController::SoaringAction MSoaringController::calculate_optimal_action(c
         if (mission_density < 0.01f && has_nearest_target) {
             float current_dist = state.current_loc.get_distance(nearest_target);
             float pred_dist = pred_loc_2d.get_distance(nearest_target);
-            float safe_current_dist = MAX(current_dist, 10.0f);
-            mission_density = nearest_target_score / 15.0f * (current_dist - pred_dist) / safe_current_dist;
+            mission_density = (nearest_target_score / 15.0f * (current_dist - pred_dist) / MAX(current_dist, 10.0f)) * msoar_m_glb_mis.get();
+        }
+        
+        // global pull if no nearby updraft nearby
+        float global_updraft_rew = 0.0f;
+        if (thermal_lift < 0.25f && has_global_thermal) {
+            float current_dist = state.current_loc.get_distance(global_thermal_loc);
+            float pred_dist = pred_loc_2d.get_distance(global_thermal_loc);
+            global_updraft_rew = (global_thermal_strength * (current_dist - pred_dist) / MAX(current_dist, 10.0f)) * msoar_m_glb_upd.get();
+
         }
 
         float bank_rad = radians(bank);
@@ -475,6 +609,7 @@ MSoaringController::SoaringAction MSoaringController::calculate_optimal_action(c
                 //float tgt_alt_factor = MIN(1.0f, pred_alt / tgt_alt.get());
                 r_mis = (1.0f - lambda_lagrange) * mission_density * 1 * msoar_beta.get();
             }
+            r_mis *= msoar_m_mis_tot.get();
 
             float r_greed = 0.0f;
             float thr_hyst = 0.0f;
@@ -486,7 +621,8 @@ MSoaringController::SoaringAction MSoaringController::calculate_optimal_action(c
             thr_hyst = k_thr_hyst * fabsf(step.throttle_pct - last_action.throttle_pct);
             
             float cost = step.power_amps + r_greed + thr_hyst;
-            float r_eng = (lambda_lagrange + epsilon) * (net_climb - cost);
+            float r_eng = (lambda_lagrange + epsilon) * (net_climb + global_updraft_rew - cost);
+            r_eng *= msoar_m_eng_tot.get();
 
             float r_safe = 0.0f;
             if (pred_alt < (mis_alt_min_m + buffer)) {
@@ -507,7 +643,7 @@ MSoaringController::SoaringAction MSoaringController::calculate_optimal_action(c
             
             // Motor start penalty
             if (last_action.throttle_pct == 0 && step.throttle_pct > 0) {
-                total -= 0.5f;
+                total -= msoar_pen_mot.get();
             }
 
             if (total > best_action.score_total) {
@@ -547,36 +683,14 @@ Location MSoaringController::predict_position_future(const VehicleState &state, 
 }
 
 float MSoaringController::predict_thermal_lift(const VehicleState &state, const Location &pred_loc) {
-    float max_lift = 0.0f;
+       
+    float expected_lift = updraft_estimator.get_lift_prediction(pred_loc, state.alt_m, state.time_us);
     
-    for (uint8_t i = 0; i < MAX_THERMALS; i++) {
-        if (!thermal_memory[i].active) continue;
-        
-        if (thermal_memory[i].radius_r0 < 0.1f || 
-        isnan(thermal_memory[i].strength_w0) ||
-        isnan(thermal_memory[i].radius_r0)) {
-        thermal_memory[i].active = false;
-        continue;
-        }
-        
-        // Age out thermals older than 2 minutes using injection time
-        if (state.time_us - thermal_memory[i].last_update_ms > 120000) {
-            thermal_memory[i].active = false;
-            continue;
-        }
-
-        float dist = pred_loc.get_distance(thermal_memory[i].center_loc);
-        float r0 = thermal_memory[i].radius_r0;
-        
-        if (dist > (r0 * 3.0f)) continue; 
-
-        float r0_sq = MAX(sq(r0), 1.0f);
-        float exponent = -1.0f * (sq(dist) / r0_sq);
-        float lift = thermal_memory[i].strength_w0 * expf(exponent);
-
-        if (lift > max_lift) max_lift = lift;
-    }
-    return max_lift;
+    // Variance-Driven Exploration reward
+    // float exploration_reward = updraft_estimator.get_variance(pred_loc, state.alt_m) * (state.battery_remaining_mah / 1000.0f);
+    // return expected_lift + exploration_reward;
+    
+    return expected_lift;
 }
 
 
@@ -586,7 +700,10 @@ float MSoaringController::get_local_density_score(const Location &loc) {
     if (!mission_sem.take_nonblocking()) return 0.0f;
 
     int16_t cx, cy;
-    if (!get_grid_coords_from_loc(loc, cx, cy)) return 0.0f;
+    if (!get_grid_coords_from_loc(loc, cx, cy)) {
+        mission_sem.give();
+        return 0.0f;
+    }
 
     const int16_t rad = msoar_mis_search_rad.get();
     const int16_t step = 2; 
@@ -640,6 +757,7 @@ bool MSoaringController::is_healthy() {
     CHECK_HEALTHY(heatmap_origin.is_zero() == false, "Origin is zero");
     CHECK_HEALTHY(mis_alt_min_m < mis_alt_max_m, "Alt limits invalid");
     CHECK_HEALTHY(_ahrs.healthy(), "AHRS not healthy");
+    CHECK_HEALTHY(updraft_estimator.is_initialised(), "Estimator failed to boot");
 
     return true;
 }
@@ -657,7 +775,7 @@ float MSoaringController::get_thermalling_target_airspeed() const {
 
 float MSoaringController::get_target_bank_angle_cd() const {
     if (!last_action.is_valid) {
-        return 0.0f; // Fly straight if we don't have a valid action yet
+        return 0.0f; // Fly straight if no valid action yet
     }
     // Convert degrees to centi-degrees for the Attitude Controller
     return last_action.bank_angle * 100.0f; 
@@ -668,6 +786,13 @@ int8_t MSoaringController::get_target_throttle_pct() const {
     return last_action.throttle_pct;
 }
 
+void MSoaringController::update_perf_table() {
+    perf_table[0] = { 0, msoar_p0_amp.get(), msoar_p0_vz.get() };
+    perf_table[1] = { msoar_p1_thr.get(), msoar_p1_amp.get(), msoar_p1_vz.get() };
+    perf_table[2] = { msoar_p2_thr.get(), msoar_p2_amp.get(), msoar_p2_vz.get() };
+    perf_table[3] = { msoar_p3_thr.get(), msoar_p3_amp.get(), msoar_p3_vz.get() };
+    perf_table[4] = { msoar_p4_thr.get(), msoar_p4_amp.get(), msoar_p4_vz.get() };
+}
 
 // FILE SYSTEM IO
 void MSoaringController::init_io_thread() {
@@ -687,21 +812,22 @@ void MSoaringController::init_io_thread() {
 }
 
 void MSoaringController::io_thread() {
+    hal.scheduler->delay(5000); 
+    
     while (true) {
         hal.scheduler->delay(1000);
         
-        if (mission_load_requested && !mission_loaded) {
-            if (mission_sem.take(HAL_SEMAPHORE_BLOCK_FOREVER)) {
-                load_mission();
-                mission_load_requested = false;
-                mission_sem.give();
-            }
-        }
         
-        if (mission_map_changed) {
+        if (mission_load_requested && !mission_loaded) {
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "GLIDE: No Mission Loaded");
             if (mission_sem.take(HAL_SEMAPHORE_BLOCK_FOREVER)) {
-                save_mission();
-                mission_map_changed = false;
+                GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "GLIDE: Trying Mission Load");
+                load_mission();
+                // ONLY stop requesting if we successfully loaded it
+                if (mission_loaded) { 
+                    mission_load_requested = false;
+                    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "GLIDE: Mission Loaded");
+                }
                 mission_sem.give();
             }
         }
@@ -709,9 +835,12 @@ void MSoaringController::io_thread() {
 }
 
 void MSoaringController::load_mission() {
-    if (mission_loaded || mission_heatmap == nullptr) return;
+    if (mission_loaded || mission_heatmap == nullptr) {
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "GLIDE: Mission Heatmap nullptr!");
+    return;
+    }
 
-    const char* fname = "glide.bin";
+    const char* fname = "/glide.bin";
     int fd = AP::FS().open(fname, O_RDONLY);
     //if (!f) f = fopen("glide.bin", "rb"); // SITL fallback
     //if (!f) f = fopen("libraries/AP_Soaring/tests/glide.bin", "rb"); // Unit test fallback
@@ -770,7 +899,7 @@ void MSoaringController::save_mission() {
         return;
     }
 
-    const char* fname = "live_glide.bin";
+    const char* fname = "/live_glide.bin";
     int fd = AP::FS().open(fname, O_WRONLY | O_CREAT | O_TRUNC);
 
     if (fd == -1) {
@@ -852,7 +981,7 @@ void MSoaringController::log_state_to_csv(const VehicleState &state, const Soari
     static bool header_written = false;
 
     if (csv_file == nullptr) {
-        csv_file = fopen("libraries/AP_Soaring/flight_data.csv", "w");
+        csv_file = fopen("libraries/AP_MissionSoaring/flight_data.csv", "w");
         if (csv_file == nullptr) return;
     }
 
@@ -881,37 +1010,4 @@ void MSoaringController::log_state_to_csv(const VehicleState &state, const Soari
 }
 
 
-// FAILSAFE
-
-// interfaces from old soaring code expected by other libraries
-/* void MSoaringController::update_active_state(bool override_disable) { 
-    if (override_disable) {
-        // TODO - override to Failsafe?
-        return;
-    }
-}
-
-void MSoaringController::init_cruising() {
-    // Reset timers so the controller doesn't use stale data
-    last_tactical_update_ms = AP_HAL::millis();
-    last_best_score = -FLT_MAX;
-}
-
-bool MSoaringController::get_throttle_suppressed() const {
-    return (msoar_enable > 0 && last_action.throttle_pct == 0);
-}
- */
-
-/* 
-float MSoaringController::get_cruising_target_airspeed() const {
-    if (msoar_v_glide.get() < 0.1f) {
-        return _aparm.airspeed_cruise;
-    }
-    return constrain_float(msoar_v_glide.get(), _aparm.airspeed_min, _aparm.airspeed_max);
-}
-
-float MSoaringController::get_alt_cutoff() const {
-    return mis_alt_max_m;
-}
- */
 #endif

@@ -15,7 +15,10 @@ bool ModeFBWS::_enter()
         GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "SOAR: Controller unhealthy");
         return false; // Reject entering the mode
     }
-
+    
+    plane.mission_soaring.set_logging_enabled(true);
+    plane.mission_soaring.updraft_estimator.set_logging_enabled(true);
+    GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "SOAR: FBWS ENGAGED");
     return true;
 }
 
@@ -38,7 +41,7 @@ void ModeFBWS::update()
     if (plane.mission_soaring.is_active()) {
         //float shadow_bank_cd = plane.mission_soaring.get_target_bank_angle_cd();
         //int8_t shadow_throttle_pct = plane.mission_soaring.get_target_throttle_pct();
-        // TODO LOGGING
+        plane.mission_soaring.log_estimators(AP_HAL::micros());
     }
 
 }
@@ -47,5 +50,13 @@ void ModeFBWS::run()
 {
     ModeFBWA::run();
 }
+
+void ModeFBWS::_exit()
+{
+    plane.mission_soaring.set_logging_enabled(false);
+    plane.mission_soaring.updraft_estimator.set_logging_enabled(false);
+    GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "SOAR: FBWS EXIT");
+}
+
 
 #endif

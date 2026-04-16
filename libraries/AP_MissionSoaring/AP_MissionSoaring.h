@@ -18,6 +18,8 @@
 #include <AP_Soaring/Variometer.h>
 #include <AP_Logger/AP_Logger.h>
 
+#include "UpdraftEstimator.h"
+
 class MSoaringController {
 public:
     MSoaringController(AP_AHRS &ahrs, const AP_FixedWing &parms); 
@@ -46,14 +48,13 @@ public:
     };
 
 	// Throttle settings and associated performance 
-	// TODO Move to config
     struct PerformanceStep {
         int8_t throttle_pct;
         float power_amps;
         float vz_still_air;
     };
 	
-	// Parameters from vehicle - by decoupling soaring controller from AP - can do unit testing
+	// Parameters from vehicle
 	struct VehicleState {
         float alt_m;
         float tas_m_s;
@@ -67,6 +68,7 @@ public:
         float cruise_spd_m_s;
         float airmass_rate_m_s;
         Vector2f pos_ne_m;
+        Vector2f ground_vel_m_s; // for updraft estimator
     };
 
     // Thermal Memory
@@ -91,15 +93,9 @@ public:
         bool is_valid;         
     };
 	
-	// interfaces from old soaring code expected by other libraries
-	//enum class ActiveStatus { 
-    //    SOARING_DISABLED = 0,
-    //    SOARING_ENABLED = 1,
-	//	MANUAL_MODE_CHANGE = 2,
-	//	AUTO_MODE_CHANGE = 3
-    //};
 	
-	
+	UpdraftEstimator updraft_estimator;
+    
 	// VARIABLES
 	
 	float lambda_lagrange = 0.5f;	// "cost" of energy (0-1)	
@@ -129,13 +125,15 @@ public:
 	float get_target_bank_angle_cd() const;
 	int8_t get_target_throttle_pct() const;
 	float get_thermalling_target_airspeed() const;
-	//float get_cruising_target_airspeed() const; 			// old AP_Soaring stuff
-	//int8_t get_thermalling_flap() const { return 0; }
-	//float get_alt_cutoff() const;
-	//bool get_throttle_suppressed() const;
 
-    //void init_cruising();
-    //void update_active_state(bool override_disable);
+
+    void set_logging_enabled(bool enable) { _log_enable = enable; }
+    bool logging_enabled() const { return _log_enable; }
+    void log_estimators(uint32_t now_us) {
+        if (!_log_enable) return;
+        updraft_estimator.log_ue_sgp(now_us);
+        updraft_estimator.log_ue_cat(now_us);
+    }
 
 
 private:
@@ -161,6 +159,40 @@ private:
     AP_Float msoar_cam_vfov;		// Camera vertical FOV
     AP_Float msoar_dep_fact;		// Mission Cell Depletion factor (priority/second)
 	
+    // Performance Table Parameters
+    AP_Float msoar_p0_amp;
+    AP_Float msoar_p0_vz;
+    
+    AP_Int8  msoar_p1_thr;
+    AP_Float msoar_p1_amp;
+    AP_Float msoar_p1_vz;
+    
+    AP_Int8  msoar_p2_thr;
+    AP_Float msoar_p2_amp;
+    AP_Float msoar_p2_vz;
+    
+    AP_Int8  msoar_p3_thr;
+    AP_Float msoar_p3_amp;
+    AP_Float msoar_p3_vz;
+    
+    AP_Int8  msoar_p4_thr;
+    AP_Float msoar_p4_amp;
+    AP_Float msoar_p4_vz;
+    
+    // Tuning Multipliers
+    AP_Float msoar_m_glb_upd;   // Global updraft pull multiplier
+    AP_Float msoar_m_glb_mis;   // Global mission pull multiplier
+    AP_Float msoar_m_mis_tot;   // Total mission score multiplier
+    AP_Float msoar_m_eng_tot;   // Total energy score multiplier
+    
+    // Tuning Constants
+    AP_Float msoar_pen_mot;     // Motor start penalty
+    AP_Float msoar_k_safe;      // Safety penalty multiplier
+    AP_Float msoar_k_greed;     // Amps cost multiplier
+    AP_Float msoar_alt_buf;     // Altitude floor buffer
+    AP_Float msoar_k_thr_hyst;  // Throttle hysteresis penalty
+    AP_Int8  msoar_max_bank;    // Maximum bank angle evaluated
+    
 	// MISSION FILE VARIABLES
 	float mis_alt_min_m = 50.0f;     
     float mis_alt_max_m = 120.0f;    
@@ -187,14 +219,15 @@ private:
 	Location nearest_target;
     bool has_nearest_target = false;
 	uint8_t nearest_target_score = 0;
+    
+    Location global_thermal_loc;
+    float global_thermal_strength = 0.0f;
+    bool has_global_thermal = false;
 
     SoaringAction last_action;
     float last_best_score = -FLT_MAX;
 
     // Thermal Memory
-    static const uint8_t MAX_THERMALS = 10;
-    ThermalObject thermal_memory[MAX_THERMALS];
-	uint32_t last_thermal_update_ms = 0;
 
     // mission Config
     uint8_t *mission_heatmap = nullptr;
@@ -206,7 +239,7 @@ private:
     float grid_res_m = 10.0f;
     Location heatmap_origin;
 
-    static const PerformanceStep perf_table[];
+    PerformanceStep perf_table[5];
 
     // FUNCTIONS
     
@@ -219,11 +252,14 @@ private:
     float predict_thermal_lift(const VehicleState &state, const Location &pred_loc);
     float get_local_density_score(const Location &loc);
     bool get_grid_coords_from_loc(const Location &loc, int16_t &x, int16_t &y);
+    void update_perf_table();
 
     // Logging & Output
     void Log_Write_Soaring(const SoaringAction &action);
 	void log_state_to_csv(const VehicleState &state, const SoaringAction &action);
 	void save_mission();
+    bool _log_enable = false;
+    uint32_t _last_soar_log_us = 0;
 };
 
 #endif // HAL_MISSIONSOARING_ENABLED
