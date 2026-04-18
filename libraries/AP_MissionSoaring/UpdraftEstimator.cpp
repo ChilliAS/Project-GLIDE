@@ -15,7 +15,7 @@ const AP_Param::GroupInfo UpdraftEstimator::var_info[] = {
     // @Range: 0.1 2.0
     // @Increment: 0.1
     // @User: Advanced
-    AP_GROUPINFO("OB_VAR", 1, UpdraftEstimator, obs_noise_var, 0.5f),
+    AP_GROUPINFO("OB_VAR", 1, UpdraftEstimator, obs_noise_var, 1.5f),
 
     // @Param: OBS_DECAY
     // @DisplayName: Observation Temporal Decay
@@ -146,7 +146,7 @@ const AP_Param::GroupInfo UpdraftEstimator::var_info[] = {
     //               new catalogue entry is spawned. Higher = require more observations.
     // @Range: 0.5 0.95
     // @User: Advanced
-    AP_GROUPINFO("SPN_VAR", 18, UpdraftEstimator, spawn_var_frac, 0.70f),
+    AP_GROUPINFO("SPN_VAR", 18, UpdraftEstimator, spawn_var_frac, 0.80f),
 
     // @Param: NMS_RAD
     // @DisplayName: NMS Suppression Radius (grid cells)

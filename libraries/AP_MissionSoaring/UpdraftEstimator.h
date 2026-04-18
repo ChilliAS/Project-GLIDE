@@ -252,7 +252,7 @@ private:
     static constexpr uint8_t M = SGP_NUM_INDUCING_POINTS;
     static constexpr uint16_t kuu_size = M * M;
     static constexpr uint8_t GRID_CENTER_IDX = 38; // for 77 points
-    static constexpr uint8_t SGP_MIN_CLUSTER_POINTS = 3; // nodes above lift_min required to spawn catalogue entry
+    static constexpr uint8_t SGP_MIN_CLUSTER_POINTS = 4; // nodes above lift_min required to spawn catalogue entry
     
     float sigma_n_sq;
     float tau_decay;
