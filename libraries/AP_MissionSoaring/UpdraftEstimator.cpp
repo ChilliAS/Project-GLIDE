@@ -1361,7 +1361,7 @@ void UpdraftEstimator::log_ue_sgp(uint32_t now_us) {
     for (uint8_t idx = 0; idx < SGP_NUM_INDUCING_POINTS; idx++) {
         AP::logger().Write(
             "UPGP",
-            "t,i,olat,olng,wn,we,n,e,z,a",
+            "TimeUS,i,olat,olng,wn,we,n,e,z,a",
             "----------",
             "0000000000",
             "Qbiiffffff",
@@ -1405,7 +1405,7 @@ void UpdraftEstimator::log_ue_cat(uint32_t now_us) {
         const auto& c = cat_snap[i];
         AP::logger().Write(
             "UPCT",
-            "t,i,act,typ,w0,ru,rv,hdg,n,e,age",
+            "TimeUS,i,act,typ,w0,ru,rv,hdg,n,e,age",
             "-----------",
             "00000000000",
             "QBBBfffffff",
