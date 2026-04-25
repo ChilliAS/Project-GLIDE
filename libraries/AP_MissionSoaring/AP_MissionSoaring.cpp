@@ -423,8 +423,7 @@ void MSoaringController::update_tactical_loop(const VehicleState &state) {
     float dt = (state.time_us - last_tactical_update_us) * 1.0e-6f;
      
     update_thermals(state, dt);
-    SoaringAction action = calculate_optimal_action(state);
-    log_state_to_csv(state, action);   
+    SoaringAction action = calculate_optimal_action(state);  
 
     if (action.is_valid) {
         if (_log_enable) {
@@ -538,7 +537,7 @@ MSoaringController::VehicleState MSoaringController::get_current_state() {
     uint32_t now_ms = AP_HAL::millis();
     if (now_ms - last_airmass_msg_ms >= 1000) {
         last_airmass_msg_ms = now_ms;
-        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "GLIDE: Vario %.2f, Air %.2f m/s", (double)_vario.get_displayed_value(), (double)state.airmass_rate_m_s);
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "GLIDE: Air %.2f m/s", (double)state.airmass_rate_m_s);
     }
     #endif
 
@@ -945,8 +944,8 @@ void MSoaringController::save_mission() {
 void MSoaringController::Log_Write_Soaring(const SoaringAction &action) {
 #if HAL_LOGGING_ENABLED
     AP::logger().Write(
-        "SOAR",                         
-        "Time_micros,Bank,Thr,Tot,Mis,Eng,Saf,Lam", 
+        "MSOR",                         
+        "TimeUS,Bank,Thr,Tot,Mis,Eng,Saf,Lam", 
         "sdddddd-",                     // units
         "0-------",                     // multipliers
         "Qfbfffff",                     // format: Q=uint64, f=float, b=int8
