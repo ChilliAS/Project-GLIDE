@@ -12,13 +12,40 @@
 #include <AP_AHRS/AP_AHRS.h>
 #include <AP_Param/AP_Param.h>
 #include <AP_Math/AP_Math.h>
+#include <AP_HAL/AP_HAL.h>
 #include <AP_Vehicle/AP_FixedWing.h>
 
 #include <AP_Soaring/ExtendedKalmanFilter.h>
 #include <AP_Soaring/Variometer.h>
 #include <AP_Logger/AP_Logger.h>
 
+#include "ExtendedVariometer.h"
 #include "UpdraftEstimator.h"
+
+struct MSoaringVehicleState {
+    float alt_m;
+    float tas_m_s;
+    float heading_true_rad;
+    Vector3f wind;
+    Location current_loc;
+    float battery_remaining_mah;
+    uint32_t time_us;
+    bool is_armed;
+    float dist_to_home_m;
+    float cruise_spd_m_s;
+    float airmass_rate_m_s;
+    Vector2f pos_ne_m;
+    Vector2f ground_vel_m_s; // for updraft estimator
+
+    // Extended Variometer
+    float roll_rad;
+    float pitch_rate_rads;
+    float roll_rate_rads;
+    float batt_voltage;
+    float batt_current_a;
+    float air_density;
+};
+
 
 class MSoaringController {
 public:
@@ -54,25 +81,15 @@ public:
         float vz_still_air;
     };
 	
-	// Parameters from vehicle
-	struct VehicleState {
-        float alt_m;
-        float tas_m_s;
-        float heading_true_rad;
-        Vector3f wind;
-        Location current_loc;
-        float battery_remaining_mah;
-        uint32_t time_us;
-		bool is_armed;
-        float dist_to_home_m;
-        float cruise_spd_m_s;
-        float airmass_rate_m_s;
-        Vector2f pos_ne_m;
-        Vector2f ground_vel_m_s; // for updraft estimator
-    };
-
     // Thermal Memory
-    struct ThermalObject {
+    struct ThermalObject {float roll_rad;
+        float pitch_rate_rads;
+        float roll_rate_rads;
+        float batt_voltage;
+        float batt_current_a;
+        bool  has_accel_fwd;
+        float accel_fwd_m_s2;
+        float air_density;
         Location center_loc; 
         float strength_w0;   // Peak lift (m/s)
         float radius_r0;     // Radius (m)
@@ -107,10 +124,10 @@ public:
 
     void update_tactical_loop();					// 20 Hz
 	void update_strategic_loop();                   // 1 Hz
-    void update_tactical_loop(const VehicleState &state); // overloaded for unit testing
-    void update_strategic_loop(const VehicleState &state); // overloaded for unit testing
+    void update_tactical_loop(const MSoaringVehicleState &state); // overloaded for unit testing
+    void update_strategic_loop(const MSoaringVehicleState &state); // overloaded for unit testing
 	SoaringAction get_last_action() const { return last_action; }
-    SoaringAction calculate_optimal_action(const VehicleState &state);
+    SoaringAction calculate_optimal_action(const MSoaringVehicleState &state);
 	
 	// Helper Functions
 	
@@ -121,7 +138,6 @@ public:
 	bool is_healthy();
     uint8_t get_failsafe_action() const;
 	bool is_active() const { return msoar_enable.get() > 0; }
-	float get_vario_reading() const { return _vario.reading; }
 	float get_target_bank_angle_cd() const;
 	int8_t get_target_throttle_pct() const;
 	float get_thermalling_target_airspeed() const;
@@ -140,10 +156,9 @@ private:
     // AP Objects
     AP_AHRS &_ahrs;
 	const AP_FixedWing &_aparm;
-	Variometer::PolarParams _polar_params;
 	
-	Variometer _vario;
     ExtendedKalmanFilter _ekf;
+    ExtendedVariometer _extended_vario;
 
     static const uint32_t MAX_HEATMAP_BYTES = 125000;
     
@@ -153,7 +168,7 @@ private:
     AP_Float msoar_beta;         // Mission vs Energy factor
     AP_Int8  msoar_mis_search_rad;      // mission Search Radius (cells)
     AP_Float tgt_alt;       // Optimal altitude (m)
-	AP_Float msoar_v_glide;      // Target airspeed when gliding/thermalling
+	AP_Float msoar_v_glide;      // Target airspeed
 	AP_Int8  msoar_fs_action;    // 0 = RTL, 1 = FBWA
 	AP_Float msoar_cam_hfov;     // Camera horizontal FOV
     AP_Float msoar_cam_vfov;		// Camera vertical FOV
@@ -215,6 +230,7 @@ private:
     float start_batt_mah = 0.0f;    // Battery capacity at start
     //uint32_t last_strategic_update_ms = 0;
 	uint32_t last_tactical_update_us = 0;
+    uint32_t last_vario_update_us = 0;
 	
 	Location nearest_target;
     bool has_nearest_target = false;
@@ -244,21 +260,20 @@ private:
     // FUNCTIONS
     
     // Core Logic
-	VehicleState get_current_state();
-	void update_thermals(const VehicleState &state, float dt);
+	MSoaringVehicleState get_current_state();
+	void update_thermals(const MSoaringVehicleState &state, float dt);
 
     // Helpers
-    Location predict_position_future(const VehicleState &state, float bank_angle, float dt);
-    float predict_thermal_lift(const VehicleState &state, const Location &pred_loc);
+    Location predict_position_future(const MSoaringVehicleState &state, float bank_angle, float dt);
+    float predict_thermal_lift(const MSoaringVehicleState &state, const Location &pred_loc);
     float get_local_density_score(const Location &loc);
     bool get_grid_coords_from_loc(const Location &loc, int16_t &x, int16_t &y);
     void update_perf_table();
 
     // Logging & Output
     void Log_Write_Soaring(const SoaringAction &action);
-	void log_state_to_csv(const VehicleState &state, const SoaringAction &action);
 	void save_mission();
-    bool _log_enable = false;
+    bool _log_enable = true;
     uint32_t _last_soar_log_us = 0;
 };
 
